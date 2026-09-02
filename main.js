@@ -121,6 +121,7 @@ var STRINGS = {
     pluginName: "\u81EA\u5B9A\u4E49\u8BED\u6CD5",
     addRule: "\u6DFB\u52A0\u89C4\u5219",
     followSystem: "\u8DDF\u968F\u7CFB\u7EDF",
+    toggle: "\u542F\u7528\u6216\u7981\u7528",
     edit: "\u7F16\u8F91",
     delete: "\u5220\u9664",
     deleteConfirm: "\u786E\u5B9A\u8981\u5220\u9664\u89C4\u5219\u300C{name}\u300D\u5417\uFF1F",
@@ -147,6 +148,7 @@ var STRINGS = {
     pluginName: "Custom Syntax",
     addRule: "Add rule",
     followSystem: "Follow system",
+    toggle: "Enable or disable",
     edit: "Edit",
     delete: "Delete",
     deleteConfirm: 'Delete rule "{name}"?',
@@ -404,12 +406,22 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     const toggle = controls.createDiv({
       cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container"
     });
-    toggle.createEl("input", { attr: { type: "checkbox", tabindex: "0" } });
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("aria-checked", String(rule.enabled));
+    toggle.setAttribute("aria-label", t.toggle);
+    toggle.setAttribute("tabindex", "0");
     toggle.addEventListener("click", async () => {
       const newVal = !rule.enabled;
       toggle.toggleClass("is-enabled", newVal);
+      toggle.setAttribute("aria-checked", String(newVal));
       await this.toggleRule(rule, newVal);
       window.setTimeout(() => this.display(), 180);
+    });
+    toggle.addEventListener("keydown", (ev) => {
+      if (ev.key === " " || ev.key === "Enter") {
+        ev.preventDefault();
+        toggle.click();
+      }
     });
     if (rule.conflictWithId) {
       const other = this.plugin.settings.rules.find(

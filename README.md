@@ -1,5 +1,7 @@
 # Custom Syntax
 
+> [中文说明](README.zh-CN.md)
+
 An [Obsidian](https://obsidian.md) plugin that lets you define **custom inline syntax delimiters** and render them with **your own CSS** — with native, real-time preview, just like built-in Markdown.
 
 Wrap text with a delimiter you define (e.g. `++text++`) and it renders instantly with the CSS you specify. The markers are hidden until you place the cursor inside them — exactly like Obsidian's native `**bold**` or `~~strikethrough~~`.

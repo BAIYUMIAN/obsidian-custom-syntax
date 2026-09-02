@@ -1,6 +1,6 @@
 {
 	"name": "custom-syntax",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "Define custom inline syntax delimiters and render them with native styling.",
 	"main": "main.js",
 	"scripts": {

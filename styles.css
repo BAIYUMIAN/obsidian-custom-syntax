@@ -86,7 +86,7 @@
 
 .custom-syntax-modal-actions {
 	display: flex;
-	justify-content: space-between;
+	justify-content: flex-end;
 	gap: 8px;
 	margin-top: 16px;
 }

@@ -121,6 +121,7 @@ interface UIStrings {
 	pluginName: string;
 	addRule: string;
 	followSystem: string;
+	toggle: string;
 	edit: string;
 	delete: string;
 	deleteConfirm: string;
@@ -149,6 +150,7 @@ const STRINGS: Record<ResolvedLanguage, UIStrings> = {
 		pluginName: "自定义语法",
 		addRule: "添加规则",
 		followSystem: "跟随系统",
+		toggle: "启用或禁用",
 		edit: "编辑",
 		delete: "删除",
 		deleteConfirm: "确定要删除规则「{name}」吗？",
@@ -176,6 +178,7 @@ const STRINGS: Record<ResolvedLanguage, UIStrings> = {
 		pluginName: "Custom Syntax",
 		addRule: "Add rule",
 		followSystem: "Follow system",
+		toggle: "Enable or disable",
 		edit: "Edit",
 		delete: "Delete",
 		deleteConfirm: "Delete rule \"{name}\"?",
@@ -512,12 +515,22 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 		const toggle = controls.createDiv({
 			cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container",
 		});
-		toggle.createEl("input", { attr: { type: "checkbox", tabindex: "0" } });
+		toggle.setAttribute("role", "switch");
+		toggle.setAttribute("aria-checked", String(rule.enabled));
+		toggle.setAttribute("aria-label", t.toggle);
+		toggle.setAttribute("tabindex", "0");
 		toggle.addEventListener("click", async () => {
 			const newVal = !rule.enabled;
 			toggle.toggleClass("is-enabled", newVal);
+			toggle.setAttribute("aria-checked", String(newVal));
 			await this.toggleRule(rule, newVal);
 			window.setTimeout(() => this.display(), 180);
+		});
+		toggle.addEventListener("keydown", (ev: KeyboardEvent) => {
+			if (ev.key === " " || ev.key === "Enter") {
+				ev.preventDefault();
+				toggle.click();
+			}
 		});
 
 		if (rule.conflictWithId) {
