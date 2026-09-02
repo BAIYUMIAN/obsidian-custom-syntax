@@ -1,0 +1,97 @@
+/* Dim the delimiter markers (shown only while the cursor is inside a match). */
+.cm-editor .custom-syntax-delim {
+	opacity: 0.35;
+}
+
+/* Fixed top navigation bar in the settings tab. */
+.custom-syntax-nav {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 0;
+	margin-bottom: 16px;
+	background-color: var(--background-primary);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.custom-syntax-nav-title {
+	font-weight: 600;
+	font-size: var(--font-ui-large);
+}
+
+.custom-syntax-nav-version {
+	font-size: var(--font-ui-smaller);
+	font-weight: 400;
+	color: var(--text-muted);
+	margin-left: 6px;
+}
+
+.custom-syntax-nav-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* One rule = one single-layer card. */
+.custom-syntax-rule-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	margin-bottom: 10px;
+	background-color: var(--background-secondary);
+	padding: 4px 6px;
+}
+
+.custom-syntax-rule-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 10px;
+}
+
+.custom-syntax-rule-name {
+	flex: 1;
+	min-width: 0;
+	font-size: var(--font-ui-medium);
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.custom-syntax-rule-controls {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+.custom-syntax-rule-conflict {
+	padding: 0 12px 8px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-error);
+}
+
+/* Rule editor modal. */
+.custom-syntax-error {
+	color: #fff;
+	font-size: var(--font-ui-small);
+	margin: 8px 0;
+	padding: 8px;
+	border-radius: 6px;
+	background-color: var(--color-red, #e81123);
+}
+
+.custom-syntax-modal-actions {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.custom-syntax-css-input {
+	font-family: var(--font-monospace);
+	resize: vertical;
+}

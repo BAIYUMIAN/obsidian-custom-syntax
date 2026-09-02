@@ -1,0 +1,10 @@
+{
+	"id": "custom-syntax",
+	"name": "Custom Syntax",
+	"version": "1.0.0",
+	"minAppVersion": "1.0.0",
+	"description": "Define custom inline syntax delimiters and style them with your own CSS, with native real-time preview.",
+	"author": "BAIYUMIAN",
+	"authorUrl": "https://github.com/BAIYUMIAN",
+	"isDesktopOnly": false
+}
