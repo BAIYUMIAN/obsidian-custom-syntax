@@ -297,6 +297,33 @@ var RuleModal = class extends import_obsidian.Modal {
     this.onDone();
   }
 };
+var ConfirmModal = class extends import_obsidian.Modal {
+  constructor(app, message, confirmLabel, cancelLabel, onConfirm) {
+    super(app);
+    this.message = message;
+    this.confirmLabel = confirmLabel;
+    this.cancelLabel = cancelLabel;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("p", {
+      cls: "custom-syntax-confirm-message",
+      text: this.message
+    });
+    const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
+    const cancelBtn = btnRow.createEl("button", { text: this.cancelLabel });
+    cancelBtn.addEventListener("click", () => this.close());
+    const confirmBtn = btnRow.createEl("button", {
+      text: this.confirmLabel,
+      cls: "mod-warning"
+    });
+    confirmBtn.addEventListener("click", () => {
+      this.close();
+      this.onConfirm();
+    });
+  }
+};
 var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -366,9 +393,13 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     (0, import_obsidian.setIcon)(delBtn, "trash");
     delBtn.addEventListener("click", () => {
       const name = rule.name || t.untitled;
-      if (window.confirm(t.deleteConfirm.replace("{name}", name))) {
-        this.deleteRule(rule);
-      }
+      new ConfirmModal(
+        this.app,
+        t.deleteConfirm.replace("{name}", name),
+        t.delete,
+        t.cancel,
+        () => this.deleteRule(rule)
+      ).open();
     });
     const toggle = controls.createDiv({
       cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container"

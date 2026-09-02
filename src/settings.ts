@@ -374,6 +374,48 @@ class RuleModal extends Modal {
 	}
 }
 
+class ConfirmModal extends Modal {
+	private message: string;
+	private confirmLabel: string;
+	private cancelLabel: string;
+	private onConfirm: () => void;
+
+	constructor(
+		app: App,
+		message: string,
+		confirmLabel: string,
+		cancelLabel: string,
+		onConfirm: () => void
+	) {
+		super(app);
+		this.message = message;
+		this.confirmLabel = confirmLabel;
+		this.cancelLabel = cancelLabel;
+		this.onConfirm = onConfirm;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.createEl("p", {
+			cls: "custom-syntax-confirm-message",
+			text: this.message,
+		});
+
+		const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
+		const cancelBtn = btnRow.createEl("button", { text: this.cancelLabel });
+		cancelBtn.addEventListener("click", () => this.close());
+
+		const confirmBtn = btnRow.createEl("button", {
+			text: this.confirmLabel,
+			cls: "mod-warning",
+		});
+		confirmBtn.addEventListener("click", () => {
+			this.close();
+			this.onConfirm();
+		});
+	}
+}
+
 export class CustomSyntaxSettingTab extends PluginSettingTab {
 	plugin: CustomSyntaxPlugin;
 
@@ -457,9 +499,13 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 		setIcon(delBtn, "trash");
 		delBtn.addEventListener("click", () => {
 			const name = rule.name || t.untitled;
-			if (window.confirm(t.deleteConfirm.replace("{name}", name))) {
-				this.deleteRule(rule);
-			}
+			new ConfirmModal(
+				this.app,
+				t.deleteConfirm.replace("{name}", name),
+				t.delete,
+				t.cancel,
+				() => this.deleteRule(rule)
+			).open();
 		});
 
 		// Native Obsidian toggle: the is-enabled class drives the look.
