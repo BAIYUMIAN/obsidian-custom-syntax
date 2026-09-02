@@ -223,6 +223,48 @@ export function stringsFor(lang: Language): UIStrings {
 	return getStrings(resolveLanguage(lang));
 }
 
+class ConfirmModal extends Modal {
+	private message: string;
+	private confirmLabel: string;
+	private cancelLabel: string;
+	private onConfirm: () => void;
+
+	constructor(
+		app: App,
+		message: string,
+		confirmLabel: string,
+		cancelLabel: string,
+		onConfirm: () => void
+	) {
+		super(app);
+		this.message = message;
+		this.confirmLabel = confirmLabel;
+		this.cancelLabel = cancelLabel;
+		this.onConfirm = onConfirm;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.createEl("p", {
+			cls: "custom-syntax-confirm-message",
+			text: this.message,
+		});
+
+		const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
+		const cancelBtn = btnRow.createEl("button", { text: this.cancelLabel });
+		cancelBtn.addEventListener("click", () => this.close());
+
+		const confirmBtn = btnRow.createEl("button", {
+			text: this.confirmLabel,
+			cls: "mod-warning",
+		});
+		confirmBtn.addEventListener("click", () => {
+			this.close();
+			this.onConfirm();
+		});
+	}
+}
+
 class RuleModal extends Modal {
 	plugin: CustomSyntaxPlugin;
 	rule: SyntaxRule | null;
@@ -253,7 +295,9 @@ class RuleModal extends Modal {
 
 		new Setting(contentEl).setName(t.ruleName).addText((text) => {
 			this.nameInput = text.inputEl;
-			text.setValue(this.rule?.name ?? "").setPlaceholder(t.ruleNamePlaceholder);
+			text
+				.setValue(this.rule?.name ?? "")
+				.setPlaceholder(t.ruleNamePlaceholder);
 		});
 
 		new Setting(contentEl)
@@ -273,9 +317,9 @@ class RuleModal extends Modal {
 			.setDesc(t.cssDesc)
 			.addTextArea((ta) => {
 				this.cssInput = ta.inputEl;
-				ta
-					.setValue(this.rule?.css ?? DEFAULT_SETTINGS.rules[0].css)
-					.setPlaceholder(t.cssPlaceholder);
+				ta.setValue(
+					this.rule?.css ?? DEFAULT_SETTINGS.rules[0].css
+				).setPlaceholder(t.cssPlaceholder);
 				this.cssInput.rows = 3;
 				this.cssInput.addClass("custom-syntax-css-input");
 			});
@@ -332,7 +376,10 @@ class RuleModal extends Modal {
 		);
 		if (custom) {
 			const nm = custom.name || t.untitled;
-			if (this.pendingCustomConflict && this.pendingCustomConflict.id === custom.id) {
+			if (
+				this.pendingCustomConflict &&
+				this.pendingCustomConflict.id === custom.id
+			) {
 				this.finish(name, delimiter, css, false);
 				return;
 			}
@@ -377,54 +424,17 @@ class RuleModal extends Modal {
 	}
 }
 
-class ConfirmModal extends Modal {
-	private message: string;
-	private confirmLabel: string;
-	private cancelLabel: string;
-	private onConfirm: () => void;
-
-	constructor(
-		app: App,
-		message: string,
-		confirmLabel: string,
-		cancelLabel: string,
-		onConfirm: () => void
-	) {
-		super(app);
-		this.message = message;
-		this.confirmLabel = confirmLabel;
-		this.cancelLabel = cancelLabel;
-		this.onConfirm = onConfirm;
-	}
-
-	onOpen(): void {
-		const { contentEl } = this;
-		contentEl.createEl("p", {
-			cls: "custom-syntax-confirm-message",
-			text: this.message,
-		});
-
-		const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
-		const cancelBtn = btnRow.createEl("button", { text: this.cancelLabel });
-		cancelBtn.addEventListener("click", () => this.close());
-
-		const confirmBtn = btnRow.createEl("button", {
-			text: this.confirmLabel,
-			cls: "mod-warning",
-		});
-		confirmBtn.addEventListener("click", () => {
-			this.close();
-			this.onConfirm();
-		});
-	}
-}
-
 export class CustomSyntaxSettingTab extends PluginSettingTab {
 	plugin: CustomSyntaxPlugin;
 
 	constructor(app: App, plugin: CustomSyntaxPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-empty-function
+	getSettingDefinitions() {
+		return [];
 	}
 
 	display(): void {
@@ -450,7 +460,7 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 			["en", "English"],
 		];
 		for (const [value, label] of options) {
-			const opt = document.createElement("option");
+			const opt = langSelect.createEl("option");
 			opt.value = value;
 			opt.textContent = label;
 			langSelect.appendChild(opt);
@@ -490,27 +500,6 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 
 		const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
 
-		const editBtn = controls.createEl("button", { cls: "clickable-icon" });
-		editBtn.setAttribute("aria-label", t.edit);
-		setIcon(editBtn, "pencil");
-		editBtn.addEventListener("click", () => {
-			new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
-		});
-
-		const delBtn = controls.createEl("button", { cls: "clickable-icon" });
-		delBtn.setAttribute("aria-label", t.delete);
-		setIcon(delBtn, "trash");
-		delBtn.addEventListener("click", () => {
-			const name = rule.name || t.untitled;
-			new ConfirmModal(
-				this.app,
-				t.deleteConfirm.replace("{name}", name),
-				t.delete,
-				t.cancel,
-				() => this.deleteRule(rule)
-			).open();
-		});
-
 		// Native Obsidian toggle: the is-enabled class drives the look.
 		const toggle = controls.createDiv({
 			cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container",
@@ -531,6 +520,27 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 				ev.preventDefault();
 				toggle.click();
 			}
+		});
+
+		const editBtn = controls.createEl("button", { cls: "clickable-icon" });
+		editBtn.setAttribute("aria-label", t.edit);
+		setIcon(editBtn, "pencil");
+		editBtn.addEventListener("click", () => {
+			new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
+		});
+
+		const delBtn = controls.createEl("button", { cls: "clickable-icon" });
+		delBtn.setAttribute("aria-label", t.delete);
+		setIcon(delBtn, "trash");
+		delBtn.addEventListener("click", () => {
+			const name = rule.name || t.untitled;
+			new ConfirmModal(
+				this.app,
+				t.deleteConfirm.replace("{name}", name),
+				t.delete,
+				t.cancel,
+				() => this.deleteRule(rule)
+			).open();
 		});
 
 		if (rule.conflictWithId) {

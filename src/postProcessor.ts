@@ -1,4 +1,4 @@
-import { escapeRegExp, ruleClassName, SyntaxRule } from "./settings";
+import { escapeRegExp, SyntaxRule } from "./settings";
 
 function shouldSkip(node: Node): boolean {
 	let el = node.parentElement;
@@ -19,6 +19,22 @@ function shouldSkip(node: Node): boolean {
 	return false;
 }
 
+function cssToRecord(css: string): Record<string, string> {
+	const result: Record<string, string> = {};
+	for (const decl of css.split(";")) {
+		const trimmed = decl.trim();
+		if (!trimmed) continue;
+		const idx = trimmed.indexOf(":");
+		if (idx === -1) continue;
+		const prop = trimmed.slice(0, idx).trim();
+		const value = trimmed.slice(idx + 1).trim();
+		if (prop && value) {
+			result[prop] = value;
+		}
+	}
+	return result;
+}
+
 export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 	if (!rule.enabled || !rule.delimiter || !rule.css) {
 		return;
@@ -29,7 +45,7 @@ export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 		`${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
 		"g"
 	);
-	const cls = ruleClassName(rule.id);
+	const cssRecord = cssToRecord(rule.css);
 
 	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const textNodes: Text[] = [];
@@ -57,13 +73,11 @@ export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 		let m: RegExpExecArray | null;
 		while ((m = re.exec(text)) !== null) {
 			if (m.index > lastIndex) {
-				fragment.appendChild(
-					document.createTextNode(text.slice(lastIndex, m.index))
-				);
+				fragment.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
 			}
 
-			const span = document.createElement("span");
-			span.className = cls;
+			const span = root.createEl("span");
+			span.setCssStyles(cssRecord);
 			span.textContent = m[1];
 			fragment.appendChild(span);
 

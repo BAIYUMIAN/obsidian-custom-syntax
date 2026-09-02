@@ -42,7 +42,7 @@ function collectCodeRanges(view: EditorView): CodeRange[] {
 				},
 			});
 		}
-	} catch (e) {
+	} catch {
 		// Syntax tree unavailable — fall back to no exclusions.
 		return [];
 	}
@@ -80,7 +80,7 @@ function buildDecorations(
 			`${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
 			"g"
 		);
-		const cls = ruleClassName(rule.id);
+		const delimCls = ruleClassName(rule.id) + "-delim";
 
 		for (const { from, to } of scanRanges) {
 			const text = view.state.sliceDoc(from, to);
@@ -97,16 +97,13 @@ function buildDecorations(
 					continue;
 				}
 
-				// The delimiters are visible only while the cursor is
-				// inside the match (native Obsidian marker behavior).
 				const active = sel.from <= fullEnd && sel.to >= fullStart;
 
 				if (active) {
 					decos.push(
-						Decoration.mark({ class: "custom-syntax-delim" }).range(
-							fullStart,
-							contentStart
-						)
+						Decoration.mark({
+							class: delimCls,
+						}).range(fullStart, contentStart)
 					);
 				} else {
 					decos.push(
@@ -115,18 +112,16 @@ function buildDecorations(
 				}
 
 				decos.push(
-					Decoration.mark({ class: cls }).range(
-						contentStart,
-						contentEnd
-					)
+					Decoration.mark({
+						attributes: { style: rule.css },
+					}).range(contentStart, contentEnd)
 				);
 
 				if (active) {
 					decos.push(
-						Decoration.mark({ class: "custom-syntax-delim" }).range(
-							contentEnd,
-							fullEnd
-						)
+						Decoration.mark({
+							class: delimCls,
+						}).range(contentEnd, fullEnd)
 					);
 				} else {
 					decos.push(

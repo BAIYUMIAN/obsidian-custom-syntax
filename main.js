@@ -186,6 +186,33 @@ function getStrings(lang) {
 function stringsFor(lang) {
   return getStrings(resolveLanguage(lang));
 }
+var ConfirmModal = class extends import_obsidian.Modal {
+  constructor(app, message, confirmLabel, cancelLabel, onConfirm) {
+    super(app);
+    this.message = message;
+    this.confirmLabel = confirmLabel;
+    this.cancelLabel = cancelLabel;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("p", {
+      cls: "custom-syntax-confirm-message",
+      text: this.message
+    });
+    const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
+    const cancelBtn = btnRow.createEl("button", { text: this.cancelLabel });
+    cancelBtn.addEventListener("click", () => this.close());
+    const confirmBtn = btnRow.createEl("button", {
+      text: this.confirmLabel,
+      cls: "mod-warning"
+    });
+    confirmBtn.addEventListener("click", () => {
+      this.close();
+      this.onConfirm();
+    });
+  }
+};
 var RuleModal = class extends import_obsidian.Modal {
   constructor(app, plugin, rule, onDone) {
     super(app);
@@ -215,7 +242,9 @@ var RuleModal = class extends import_obsidian.Modal {
     new import_obsidian.Setting(contentEl).setName(t.css).setDesc(t.cssDesc).addTextArea((ta) => {
       var _a, _b;
       this.cssInput = ta.inputEl;
-      ta.setValue((_b = (_a = this.rule) == null ? void 0 : _a.css) != null ? _b : DEFAULT_SETTINGS.rules[0].css).setPlaceholder(t.cssPlaceholder);
+      ta.setValue(
+        (_b = (_a = this.rule) == null ? void 0 : _a.css) != null ? _b : DEFAULT_SETTINGS.rules[0].css
+      ).setPlaceholder(t.cssPlaceholder);
       this.cssInput.rows = 3;
       this.cssInput.addClass("custom-syntax-css-input");
     });
@@ -299,37 +328,14 @@ var RuleModal = class extends import_obsidian.Modal {
     this.onDone();
   }
 };
-var ConfirmModal = class extends import_obsidian.Modal {
-  constructor(app, message, confirmLabel, cancelLabel, onConfirm) {
-    super(app);
-    this.message = message;
-    this.confirmLabel = confirmLabel;
-    this.cancelLabel = cancelLabel;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("p", {
-      cls: "custom-syntax-confirm-message",
-      text: this.message
-    });
-    const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
-    const cancelBtn = btnRow.createEl("button", { text: this.cancelLabel });
-    cancelBtn.addEventListener("click", () => this.close());
-    const confirmBtn = btnRow.createEl("button", {
-      text: this.confirmLabel,
-      cls: "mod-warning"
-    });
-    confirmBtn.addEventListener("click", () => {
-      this.close();
-      this.onConfirm();
-    });
-  }
-};
 var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  getSettingDefinitions() {
+    return [];
   }
   display() {
     const { containerEl } = this;
@@ -351,7 +357,7 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
       ["en", "English"]
     ];
     for (const [value, label] of options) {
-      const opt = document.createElement("option");
+      const opt = langSelect.createEl("option");
       opt.value = value;
       opt.textContent = label;
       langSelect.appendChild(opt);
@@ -384,25 +390,6 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     });
     nameEl.title = rule.delimiter;
     const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
-    const editBtn = controls.createEl("button", { cls: "clickable-icon" });
-    editBtn.setAttribute("aria-label", t.edit);
-    (0, import_obsidian.setIcon)(editBtn, "pencil");
-    editBtn.addEventListener("click", () => {
-      new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
-    });
-    const delBtn = controls.createEl("button", { cls: "clickable-icon" });
-    delBtn.setAttribute("aria-label", t.delete);
-    (0, import_obsidian.setIcon)(delBtn, "trash");
-    delBtn.addEventListener("click", () => {
-      const name = rule.name || t.untitled;
-      new ConfirmModal(
-        this.app,
-        t.deleteConfirm.replace("{name}", name),
-        t.delete,
-        t.cancel,
-        () => this.deleteRule(rule)
-      ).open();
-    });
     const toggle = controls.createDiv({
       cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container"
     });
@@ -422,6 +409,25 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
         ev.preventDefault();
         toggle.click();
       }
+    });
+    const editBtn = controls.createEl("button", { cls: "clickable-icon" });
+    editBtn.setAttribute("aria-label", t.edit);
+    (0, import_obsidian.setIcon)(editBtn, "pencil");
+    editBtn.addEventListener("click", () => {
+      new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
+    });
+    const delBtn = controls.createEl("button", { cls: "clickable-icon" });
+    delBtn.setAttribute("aria-label", t.delete);
+    (0, import_obsidian.setIcon)(delBtn, "trash");
+    delBtn.addEventListener("click", () => {
+      const name = rule.name || t.untitled;
+      new ConfirmModal(
+        this.app,
+        t.deleteConfirm.replace("{name}", name),
+        t.delete,
+        t.cancel,
+        () => this.deleteRule(rule)
+      ).open();
     });
     if (rule.conflictWithId) {
       const other = this.plugin.settings.rules.find(
@@ -467,9 +473,6 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
 
 // src/editorExtension.ts
 var settingsVersion = 0;
-function bumpSettingsVersion() {
-  settingsVersion++;
-}
 function collectCodeRanges(view) {
   const ranges = [];
   try {
@@ -513,7 +516,7 @@ function buildDecorations(view, rules) {
       `${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
       "g"
     );
-    const cls = ruleClassName(rule.id);
+    const delimCls = ruleClassName(rule.id) + "-delim";
     for (const { from, to } of scanRanges) {
       const text = view.state.sliceDoc(from, to);
       re.lastIndex = 0;
@@ -530,10 +533,9 @@ function buildDecorations(view, rules) {
         const active = sel.from <= fullEnd && sel.to >= fullStart;
         if (active) {
           decos.push(
-            import_view.Decoration.mark({ class: "custom-syntax-delim" }).range(
-              fullStart,
-              contentStart
-            )
+            import_view.Decoration.mark({
+              class: delimCls
+            }).range(fullStart, contentStart)
           );
         } else {
           decos.push(
@@ -541,17 +543,15 @@ function buildDecorations(view, rules) {
           );
         }
         decos.push(
-          import_view.Decoration.mark({ class: cls }).range(
-            contentStart,
-            contentEnd
-          )
+          import_view.Decoration.mark({
+            attributes: { style: rule.css }
+          }).range(contentStart, contentEnd)
         );
         if (active) {
           decos.push(
-            import_view.Decoration.mark({ class: "custom-syntax-delim" }).range(
-              contentEnd,
-              fullEnd
-            )
+            import_view.Decoration.mark({
+              class: delimCls
+            }).range(contentEnd, fullEnd)
           );
         } else {
           decos.push(
@@ -597,6 +597,21 @@ function shouldSkip(node) {
   }
   return false;
 }
+function cssToRecord(css) {
+  const result = {};
+  for (const decl of css.split(";")) {
+    const trimmed = decl.trim();
+    if (!trimmed) continue;
+    const idx = trimmed.indexOf(":");
+    if (idx === -1) continue;
+    const prop = trimmed.slice(0, idx).trim();
+    const value = trimmed.slice(idx + 1).trim();
+    if (prop && value) {
+      result[prop] = value;
+    }
+  }
+  return result;
+}
 function applyRule(root, rule) {
   var _a, _b, _c;
   if (!rule.enabled || !rule.delimiter || !rule.css) {
@@ -607,7 +622,7 @@ function applyRule(root, rule) {
     `${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
     "g"
   );
-  const cls = ruleClassName(rule.id);
+  const cssRecord = cssToRecord(rule.css);
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const textNodes = [];
   while (walker.nextNode()) {
@@ -632,12 +647,10 @@ function applyRule(root, rule) {
     let m;
     while ((m = re.exec(text)) !== null) {
       if (m.index > lastIndex) {
-        fragment.appendChild(
-          document.createTextNode(text.slice(lastIndex, m.index))
-        );
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
       }
-      const span = document.createElement("span");
-      span.className = cls;
+      const span = root.createEl("span");
+      span.setCssStyles(cssRecord);
       span.textContent = m[1];
       fragment.appendChild(span);
       lastIndex = m.index + m[0].length;
@@ -656,25 +669,20 @@ function applyRule(root, rule) {
 var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
   constructor() {
     super(...arguments);
-    this.styleEl = null;
+    this.editorExtension = [];
   }
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new CustomSyntaxSettingTab(this.app, this));
-    this.registerEditorExtension(
-      createEditorExtension(() => this.settings.rules)
-    );
+    this.editorExtension.push(createEditorExtension(() => this.settings.rules));
+    this.registerEditorExtension(this.editorExtension);
     this.registerMarkdownPostProcessor((el) => {
       for (const rule of this.settings.rules) {
         applyRule(el, rule);
       }
     });
-    this.refreshStylesheet();
   }
   onunload() {
-    var _a;
-    (_a = this.styleEl) == null ? void 0 : _a.detach();
-    this.styleEl = null;
   }
   async loadSettings() {
     const data = await this.loadData();
@@ -693,28 +701,8 @@ var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
     this.refresh();
   }
   refresh() {
-    var _a, _b;
-    this.refreshStylesheet();
-    bumpSettingsVersion();
-    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
-      const view = leaf.view;
-      if (!(view instanceof import_obsidian2.MarkdownView)) {
-        continue;
-      }
-      const editor = view.editor;
-      (_a = editor == null ? void 0 : editor.cm) == null ? void 0 : _a.dispatch({});
-      (_b = view.previewMode) == null ? void 0 : _b.rerender(true);
-    }
-  }
-  refreshStylesheet() {
-    if (!this.styleEl) {
-      this.styleEl = document.createElement("style");
-      this.styleEl.setAttribute("data-custom-syntax", "");
-      document.head.appendChild(this.styleEl);
-    }
-    const rules = this.settings.rules.filter(
-      (r) => r.enabled && r.delimiter && r.css
-    );
-    this.styleEl.textContent = rules.map((r) => `.${ruleClassName(r.id)} { ${r.css} }`).join("\n");
+    this.editorExtension.length = 0;
+    this.editorExtension.push(createEditorExtension(() => this.settings.rules));
+    this.app.workspace.updateOptions();
   }
 };
