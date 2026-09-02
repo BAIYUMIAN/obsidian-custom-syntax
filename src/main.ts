@@ -1,5 +1,5 @@
 import { Extension } from "@codemirror/state";
-import { Plugin } from "obsidian";
+import { MarkdownView, Plugin } from "obsidian";
 import { createEditorExtension } from "./editorExtension";
 import { applyRule } from "./postProcessor";
 import {
@@ -55,5 +55,20 @@ export default class CustomSyntaxPlugin extends Plugin {
 		this.editorExtension.length = 0;
 		this.editorExtension.push(createEditorExtension(() => this.settings.rules));
 		this.app.workspace.updateOptions();
+		this.rerenderPreviews();
+	}
+
+	/**
+	 * `updateOptions()` only refreshes editors. Reading view content is
+	 * produced once by the post-processor, so it has to be re-rendered
+	 * explicitly for a rule change to show up there.
+	 */
+	private rerenderPreviews(): void {
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			const view = leaf.view;
+			if (view instanceof MarkdownView && view.previewMode) {
+				view.previewMode.rerender(true);
+			}
+		});
 	}
 }

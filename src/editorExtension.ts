@@ -9,7 +9,12 @@ import {
 	ViewPlugin,
 	ViewUpdate,
 } from "@codemirror/view";
-import { escapeRegExp, ruleClassName, SyntaxRule } from "./settings";
+import {
+	contentClasses,
+	escapeRegExp,
+	ruleClassName,
+	SyntaxRule,
+} from "./settings";
 
 interface CodeRange {
 	from: number;
@@ -66,10 +71,18 @@ function buildDecorations(
 	const sel = view.state.selection.main;
 
 	for (const rule of rules) {
-		if (!rule.enabled || !rule.delimiter || !rule.css) {
+		if (!rule.enabled || !rule.delimiter) {
 			continue;
 		}
 
+		const css = (rule.css ?? "").trim();
+		const extraClass = (rule.className ?? "").trim();
+		// A rule with neither declarations nor a class has nothing to render.
+		if (!css && !extraClass) {
+			continue;
+		}
+
+		const contentCls = contentClasses(rule);
 		const delim = rule.delimiter;
 		const re = new RegExp(
 			`${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
@@ -83,6 +96,13 @@ function buildDecorations(
 			let m: RegExpExecArray | null;
 			while ((m = re.exec(text)) !== null) {
 				const content = m[1];
+				// A delimiter pair with nothing inside it (e.g. "++++")
+				// has no content to decorate. Skipping it avoids building a
+				// zero-length mark, which throws "Mark decorations may not be
+				// empty" and permanently breaks the editor view.
+				if (content.length === 0) {
+					continue;
+				}
 				const fullStart = from + m.index;
 				const contentStart = fullStart + delim.length;
 				const contentEnd = contentStart + content.length;
@@ -108,7 +128,10 @@ function buildDecorations(
 
 				decos.push(
 					Decoration.mark({
-						attributes: { style: rule.css },
+						class: contentCls,
+						// Declarations ride along only when the user wrote any;
+						// an empty field means a CSS snippet owns the styling.
+						attributes: css ? { style: css } : undefined,
 					}).range(contentStart, contentEnd)
 				);
 

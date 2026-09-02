@@ -1,5 +1,9 @@
-/* Dim the delimiter markers (shown only while the cursor is inside a match). */
-.cm-editor .custom-syntax-delim {
+/*
+ * Dim the delimiter markers (shown only while the cursor is inside a match).
+ * Delimiter classes are generated per rule as `custom-syntax-<id>-delim`, so
+ * they are matched by substring rather than an exact class name.
+ */
+.cm-editor span[class*="custom-syntax-"][class*="-delim"] {
 	opacity: 0.35;
 }
 
@@ -96,11 +100,158 @@
 	margin-top: 16px;
 }
 
-.custom-syntax-css-input {
-	font-family: var(--font-monospace);
-	resize: vertical;
-}
-
 .custom-syntax-confirm-message {
 	margin: 0 0 16px;
+}
+
+/* The class name rendered under a rule card, for quick reference. */
+.custom-syntax-rule-class {
+	padding: 0 12px 8px;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/*
+ * Stacked setting item: the label sits on its own line and the control takes
+ * the full width underneath. Used for the declarations editor.
+ */
+.custom-syntax-stacked.setting-item {
+	display: block;
+}
+
+.custom-syntax-stacked .setting-item-control {
+	display: block;
+	margin-top: 8px;
+	text-align: left;
+}
+
+/* "Visual editor" placeholder button sits to the right of the
+   declarations editor on the same row; disabled until feature ships. */
+.custom-syntax-css-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.custom-syntax-css-row > .custom-syntax-css-editor {
+	flex: 1;
+	min-width: 0;
+}
+
+.custom-syntax-visual-edit:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+/* Embedded CodeMirror editor for CSS declarations. */
+.custom-syntax-css-editor {
+	position: relative;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background-color: var(--background-modifier-form-field);
+}
+
+.custom-syntax-css-editor .cm-editor {
+	background-color: transparent;
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+}
+
+.custom-syntax-css-editor .cm-editor.cm-focused {
+	outline: none;
+}
+
+.custom-syntax-css-editor .cm-scroller {
+	max-height: 240px;
+	font-family: var(--font-monospace);
+	line-height: 1.6;
+	overflow: auto;
+}
+
+.custom-syntax-css-editor .cm-content {
+	padding: 6px 0;
+	caret-color: var(--text-normal);
+}
+
+.custom-syntax-css-editor .cm-gutters {
+	background-color: transparent;
+	color: var(--text-faint);
+	border-right: 1px solid var(--background-modifier-border);
+	font-family: var(--font-monospace);
+	user-select: none;
+}
+
+.custom-syntax-css-editor .cm-lineNumbers .cm-gutterElement {
+	padding: 0 8px 0 10px;
+	min-width: 26px;
+}
+
+.custom-syntax-css-editor .cm-activeLine {
+	background-color: var(--background-modifier-hover);
+}
+
+.custom-syntax-css-editor .cm-activeLineGutter {
+	background-color: transparent;
+	color: var(--text-muted);
+}
+
+.custom-syntax-css-editor .cm-matchingBracket,
+.custom-syntax-css-editor .cm-nonmatchingBracket {
+	background-color: var(--background-modifier-active-hover);
+	outline: 1px solid var(--interactive-accent);
+	color: inherit;
+}
+
+.custom-syntax-css-editor .cm-placeholder {
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+.custom-syntax-css-editor .cm-cursor,
+.custom-syntax-css-editor .cm-dropCursor {
+	border-left-color: var(--text-normal);
+	border-left-width: 2px;
+}
+
+.custom-syntax-css-editor .cm-selectionBackground,
+.custom-syntax-css-editor .cm-editor .cm-selectionBackground {
+	background-color: var(--text-selection);
+}
+
+.custom-syntax-css-editor .cm-tooltip {
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+	overflow: hidden;
+}
+
+.custom-syntax-css-editor .cm-tooltip-autocomplete ul {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	max-height: 12em;
+}
+
+.custom-syntax-css-editor .cm-tooltip-autocomplete ul li {
+	padding: 2px 8px;
+}
+
+.custom-syntax-css-editor .cm-tooltip-autocomplete ul li[aria-selected] {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+/* Read-only textarea holding the exported CSS snippet. */
+.custom-syntax-export-area {
+	width: 100%;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+	background-color: var(--background-modifier-form-field);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: 8px 10px;
+	resize: vertical;
 }

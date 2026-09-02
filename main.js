@@ -30,11 +30,686 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian2 = require("obsidian");
 
 // src/editorExtension.ts
-var import_language = require("@codemirror/language");
-var import_view = require("@codemirror/view");
+var import_language3 = require("@codemirror/language");
+var import_view2 = require("@codemirror/view");
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
+
+// src/cssEditor.ts
+var import_autocomplete = require("@codemirror/autocomplete");
+var import_commands = require("@codemirror/commands");
+var import_language2 = require("@codemirror/language");
+var import_state = require("@codemirror/state");
+var import_view = require("@codemirror/view");
+var import_highlight2 = require("@lezer/highlight");
+
+// src/cssDeclarations.ts
+var import_language = require("@codemirror/language");
+var import_highlight = require("@lezer/highlight");
+var UNITS = /* @__PURE__ */ new Set([
+  "px",
+  "em",
+  "rem",
+  "ex",
+  "ch",
+  "cap",
+  "ic",
+  "lh",
+  "rlh",
+  "vh",
+  "vw",
+  "vmin",
+  "vmax",
+  "vi",
+  "vb",
+  "pt",
+  "pc",
+  "cm",
+  "mm",
+  "q",
+  "in",
+  "fr",
+  "deg",
+  "rad",
+  "grad",
+  "turn",
+  "s",
+  "ms",
+  "hz",
+  "khz",
+  "dpi",
+  "dpcm",
+  "dppx",
+  "x"
+]);
+var parser = {
+  name: "css-declarations",
+  startState: () => ({ inValue: false, inComment: false }),
+  token(stream, state) {
+    if (state.inComment) {
+      if (stream.match(/.*?\*\//)) {
+        state.inComment = false;
+      } else {
+        stream.skipToEnd();
+      }
+      return "comment";
+    }
+    if (stream.sol() && !stream.match(/^[ \t]/)) {
+      state.inValue = false;
+    }
+    if (stream.eatSpace()) {
+      return null;
+    }
+    if (stream.match(/\/\*/)) {
+      if (!stream.match(/.*?\*\//)) {
+        state.inComment = true;
+        stream.skipToEnd();
+      }
+      return "comment";
+    }
+    if (stream.peek() === '"' || stream.peek() === "'") {
+      return readString(stream);
+    }
+    if (state.inValue) {
+      if (stream.match(/^;/)) {
+        state.inValue = false;
+        return "punct";
+      }
+      if (stream.match(/^!important/i)) {
+        return "important";
+      }
+      if (stream.match(/^#[0-9a-fA-F]{3,8}\b/)) {
+        return "number";
+      }
+      if (stream.match(/^--[A-Za-z0-9_-]+/)) {
+        return "variable";
+      }
+      if (stream.match(/^-?(?:\d+\.?\d*|\.\d+)/)) {
+        return "number";
+      }
+      if (stream.match(/^[A-Za-z][A-Za-z0-9_-]*(?=\s*\()/)) {
+        return "fn";
+      }
+      if (stream.match(/^[A-Za-z-][A-Za-z0-9_-]*/)) {
+        return UNITS.has(stream.current().toLowerCase()) ? "unit" : "value";
+      }
+      if (stream.match(/^%/)) {
+        return "unit";
+      }
+      stream.next();
+      return "punct";
+    }
+    if (stream.match(/^[:;{}]/)) {
+      state.inValue = stream.current() === ":";
+      return "punct";
+    }
+    if (stream.match(/^--[A-Za-z0-9_-]+/)) {
+      return "prop";
+    }
+    if (stream.match(/^[A-Za-z*-][A-Za-z0-9_-]*/)) {
+      return "prop";
+    }
+    stream.next();
+    return "punct";
+  },
+  languageData: {
+    commentTokens: { block: { open: "/*", close: "*/" } },
+    closeBrackets: { brackets: ["(", "'", '"'] },
+    autocomplete: cssDeclarationsCompletion
+  },
+  tokenTable: {
+    comment: import_highlight.tags.comment,
+    prop: import_highlight.tags.propertyName,
+    variable: import_highlight.tags.variableName,
+    fn: import_highlight.tags.function(import_highlight.tags.variableName),
+    number: import_highlight.tags.number,
+    unit: import_highlight.tags.unit,
+    value: import_highlight.tags.atom,
+    string: import_highlight.tags.string,
+    important: import_highlight.tags.keyword,
+    punct: import_highlight.tags.punctuation
+  }
+};
+function readString(stream) {
+  const quote = stream.next();
+  while (!stream.eol()) {
+    const ch = stream.next();
+    if (ch === "\\") {
+      stream.next();
+      continue;
+    }
+    if (ch === quote) {
+      break;
+    }
+  }
+  return "string";
+}
+var cssDeclarations = import_language.StreamLanguage.define(parser);
+var PROPERTIES = [
+  "align-content",
+  "align-items",
+  "align-self",
+  "all",
+  "animation",
+  "animation-delay",
+  "animation-duration",
+  "animation-iteration-count",
+  "animation-name",
+  "animation-timing-function",
+  "aspect-ratio",
+  "backdrop-filter",
+  "background",
+  "background-attachment",
+  "background-blend-mode",
+  "background-clip",
+  "background-color",
+  "background-image",
+  "background-position",
+  "background-repeat",
+  "background-size",
+  "block-size",
+  "border",
+  "border-block",
+  "border-bottom",
+  "border-bottom-color",
+  "border-bottom-left-radius",
+  "border-bottom-right-radius",
+  "border-bottom-style",
+  "border-bottom-width",
+  "border-collapse",
+  "border-color",
+  "border-inline",
+  "border-left",
+  "border-left-color",
+  "border-left-style",
+  "border-left-width",
+  "border-radius",
+  "border-right",
+  "border-right-color",
+  "border-right-style",
+  "border-right-width",
+  "border-spacing",
+  "border-style",
+  "border-top",
+  "border-top-color",
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-top-style",
+  "border-top-width",
+  "border-width",
+  "bottom",
+  "box-shadow",
+  "box-sizing",
+  "caption-side",
+  "caret-color",
+  "clear",
+  "clip-path",
+  "color",
+  "color-scheme",
+  "column-gap",
+  "column-rule",
+  "column-span",
+  "columns",
+  "content",
+  "counter-increment",
+  "cursor",
+  "direction",
+  "display",
+  "empty-cells",
+  "filter",
+  "flex",
+  "flex-basis",
+  "flex-direction",
+  "flex-flow",
+  "flex-grow",
+  "flex-shrink",
+  "flex-wrap",
+  "float",
+  "font",
+  "font-family",
+  "font-feature-settings",
+  "font-kerning",
+  "font-size",
+  "font-size-adjust",
+  "font-stretch",
+  "font-style",
+  "font-variant",
+  "font-variant-numeric",
+  "font-weight",
+  "gap",
+  "grid",
+  "grid-area",
+  "grid-auto-columns",
+  "grid-auto-flow",
+  "grid-auto-rows",
+  "grid-column",
+  "grid-column-end",
+  "grid-column-start",
+  "grid-gap",
+  "grid-row",
+  "grid-row-end",
+  "grid-row-start",
+  "grid-template",
+  "grid-template-areas",
+  "grid-template-columns",
+  "grid-template-rows",
+  "height",
+  "hyphens",
+  "inline-size",
+  "inset",
+  "isolation",
+  "justify-content",
+  "justify-items",
+  "justify-self",
+  "left",
+  "letter-spacing",
+  "line-break",
+  "line-height",
+  "list-style",
+  "list-style-image",
+  "list-style-position",
+  "list-style-type",
+  "margin",
+  "margin-block",
+  "margin-block-end",
+  "margin-block-start",
+  "margin-bottom",
+  "margin-inline",
+  "margin-inline-end",
+  "margin-inline-start",
+  "margin-left",
+  "margin-right",
+  "margin-top",
+  "mask",
+  "max-block-size",
+  "max-height",
+  "max-inline-size",
+  "max-width",
+  "min-block-size",
+  "min-height",
+  "min-inline-size",
+  "min-width",
+  "mix-blend-mode",
+  "object-fit",
+  "object-position",
+  "opacity",
+  "order",
+  "outline",
+  "outline-color",
+  "outline-offset",
+  "outline-style",
+  "outline-width",
+  "overflow",
+  "overflow-wrap",
+  "overflow-x",
+  "overflow-y",
+  "overscroll-behavior",
+  "padding",
+  "padding-block",
+  "padding-block-end",
+  "padding-block-start",
+  "padding-bottom",
+  "padding-inline",
+  "padding-inline-end",
+  "padding-inline-start",
+  "padding-left",
+  "padding-right",
+  "padding-top",
+  "page-break-after",
+  "page-break-before",
+  "page-break-inside",
+  "perspective",
+  "place-content",
+  "place-items",
+  "place-self",
+  "pointer-events",
+  "position",
+  "quotes",
+  "resize",
+  "right",
+  "rotate",
+  "row-gap",
+  "scale",
+  "scroll-behavior",
+  "scroll-margin",
+  "scroll-padding",
+  "tab-size",
+  "table-layout",
+  "text-align",
+  "text-align-last",
+  "text-decoration",
+  "text-decoration-color",
+  "text-decoration-line",
+  "text-decoration-style",
+  "text-decoration-thickness",
+  "text-emphasis",
+  "text-indent",
+  "text-justify",
+  "text-overflow",
+  "text-rendering",
+  "text-shadow",
+  "text-transform",
+  "text-underline-offset",
+  "top",
+  "touch-action",
+  "transform",
+  "transform-origin",
+  "transition",
+  "transition-delay",
+  "transition-duration",
+  "transition-property",
+  "transition-timing-function",
+  "translate",
+  "unicode-bidi",
+  "user-select",
+  "vertical-align",
+  "visibility",
+  "white-space",
+  "widows",
+  "width",
+  "will-change",
+  "word-break",
+  "word-spacing",
+  "word-wrap",
+  "writing-mode",
+  "z-index",
+  "zoom"
+];
+var VALUE_KEYWORDS = [
+  "auto",
+  "none",
+  "normal",
+  "inherit",
+  "initial",
+  "unset",
+  "revert",
+  "bold",
+  "bolder",
+  "lighter",
+  "italic",
+  "oblique",
+  "underline",
+  "overline",
+  "line-through",
+  "solid",
+  "dashed",
+  "dotted",
+  "double",
+  "groove",
+  "ridge",
+  "inset",
+  "outset",
+  "hidden",
+  "visible",
+  "block",
+  "inline",
+  "inline-block",
+  "inline-flex",
+  "inline-grid",
+  "flex",
+  "grid",
+  "contents",
+  "table",
+  "absolute",
+  "relative",
+  "fixed",
+  "sticky",
+  "static",
+  "left",
+  "right",
+  "center",
+  "justify",
+  "top",
+  "bottom",
+  "start",
+  "end",
+  "nowrap",
+  "pre",
+  "pre-wrap",
+  "ellipsis",
+  "uppercase",
+  "lowercase",
+  "capitalize",
+  "small-caps",
+  "pointer",
+  "default",
+  "ease",
+  "ease-in",
+  "ease-out",
+  "ease-in-out",
+  "linear",
+  "cover",
+  "contain",
+  "repeat",
+  "no-repeat"
+];
+var COLOR_KEYWORDS = [
+  "transparent",
+  "currentColor",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "cyan",
+  "blue",
+  "purple",
+  "pink",
+  "white",
+  "black",
+  "gray",
+  "grey",
+  "silver",
+  "gold"
+];
+var OBSIDIAN_VARIABLES = [
+  "--text-normal",
+  "--text-muted",
+  "--text-faint",
+  "--text-accent",
+  "--text-accent-hover",
+  "--text-error",
+  "--text-warning",
+  "--text-success",
+  "--text-highlight-bg",
+  "--text-selection",
+  "--background-primary",
+  "--background-primary-alt",
+  "--background-secondary",
+  "--background-secondary-alt",
+  "--background-modifier-border",
+  "--background-modifier-hover",
+  "--background-modifier-active-hover",
+  "--background-modifier-form-field",
+  "--interactive-normal",
+  "--interactive-hover",
+  "--interactive-accent",
+  "--interactive-accent-hover",
+  "--color-red",
+  "--color-orange",
+  "--color-yellow",
+  "--color-green",
+  "--color-cyan",
+  "--color-blue",
+  "--color-purple",
+  "--color-pink",
+  "--font-ui-smaller",
+  "--font-ui-small",
+  "--font-ui-medium",
+  "--font-ui-large",
+  "--font-monospace",
+  "--radius-s",
+  "--radius-m",
+  "--radius-l",
+  "--size-4-1",
+  "--size-4-2",
+  "--size-4-3",
+  "--size-4-4",
+  "--size-4-6",
+  "--size-4-8"
+];
+var COLOR_PROPERTIES = /* @__PURE__ */ new Set([
+  "color",
+  "background",
+  "background-color",
+  "border-color",
+  "border-top-color",
+  "border-right-color",
+  "border-bottom-color",
+  "border-left-color",
+  "caret-color",
+  "outline-color",
+  "text-decoration-color",
+  "text-emphasis-color",
+  "column-rule-color",
+  "fill",
+  "stroke"
+]);
+function toOptions(values, type) {
+  return values.map((label) => ({ label, type }));
+}
+var PROPERTY_OPTIONS = toOptions(PROPERTIES, "property");
+var KEYWORD_OPTIONS = toOptions(VALUE_KEYWORDS, "keyword");
+var COLOR_OPTIONS = toOptions(COLOR_KEYWORDS, "constant");
+var VARIABLE_OPTIONS = OBSIDIAN_VARIABLES.map((label) => ({
+  label,
+  type: "variable",
+  detail: "Obsidian"
+}));
+function currentProperty(before) {
+  const match = before.match(/([A-Za-z-][A-Za-z0-9_-]*)\s*:[^:;]*$/);
+  return match ? match[1].toLowerCase() : "";
+}
+function cssDeclarationsCompletion(context) {
+  const line = context.state.doc.lineAt(context.pos);
+  const before = line.text.slice(0, context.pos - line.from);
+  const colon = before.lastIndexOf(":");
+  const semicolon = before.lastIndexOf(";");
+  if (colon > semicolon) {
+    const word2 = context.matchBefore(/[\w-]*/);
+    if (!word2 && !context.explicit) {
+      return null;
+    }
+    const prop = currentProperty(before);
+    const options = COLOR_PROPERTIES.has(prop) ? [...COLOR_OPTIONS, ...VARIABLE_OPTIONS, ...KEYWORD_OPTIONS] : [...KEYWORD_OPTIONS, ...VARIABLE_OPTIONS, ...COLOR_OPTIONS];
+    return {
+      from: word2 ? word2.from : context.pos,
+      options,
+      validFor: /^[\w-]*$/
+    };
+  }
+  const word = context.matchBefore(/[-*\w]*/);
+  if (!word && !context.explicit) {
+    return null;
+  }
+  return {
+    from: word ? word.from : context.pos,
+    options: PROPERTY_OPTIONS,
+    validFor: /^[-*\w]*$/
+  };
+}
+
+// src/cssEditor.ts
+var cssHighlight = import_language2.HighlightStyle.define([
+  { tag: import_highlight2.tags.comment, color: "var(--text-faint)", fontStyle: "italic" },
+  { tag: import_highlight2.tags.propertyName, color: "var(--text-accent)" },
+  { tag: import_highlight2.tags.variableName, color: "var(--color-yellow)" },
+  { tag: import_highlight2.tags.function(import_highlight2.tags.variableName), color: "var(--color-purple)" },
+  { tag: [import_highlight2.tags.atom, import_highlight2.tags.keyword], color: "var(--color-blue)" },
+  { tag: [import_highlight2.tags.number, import_highlight2.tags.unit], color: "var(--color-orange)" },
+  { tag: import_highlight2.tags.string, color: "var(--color-green)" },
+  { tag: import_highlight2.tags.punctuation, color: "var(--text-muted)" },
+  { tag: import_highlight2.tags.invalid, color: "var(--color-red)" }
+]);
+function createCssEditor(parent, doc, options = {}) {
+  const extensions = [
+    import_view.EditorView.editorAttributes.of({ class: "custom-syntax-cm-editor" }),
+    (0, import_view.lineNumbers)(),
+    (0, import_view.highlightActiveLineGutter)(),
+    (0, import_view.highlightActiveLine)(),
+    (0, import_commands.history)(),
+    (0, import_view.drawSelection)(),
+    (0, import_view.rectangularSelection)(),
+    (0, import_language2.bracketMatching)(),
+    (0, import_autocomplete.closeBrackets)(),
+    (0, import_autocomplete.autocompletion)({ icons: false }),
+    // Keep completion/​lint popups inside our own container so they pick up
+    // scoped styles instead of leaking into Obsidian's global editors.
+    (0, import_view.tooltips)({ parent }),
+    import_view.EditorView.lineWrapping,
+    import_language2.indentUnit.of("  "),
+    cssDeclarations,
+    (0, import_language2.syntaxHighlighting)(cssHighlight),
+    // Ctrl/Cmd+Enter submits the surrounding dialog before the default
+    // keymap can turn it into a newline.
+    import_state.Prec.highest(
+      import_view.keymap.of([
+        {
+          key: "Mod-Enter",
+          run: () => {
+            if (options.onSubmit) {
+              options.onSubmit();
+              return true;
+            }
+            return false;
+          }
+        }
+      ])
+    ),
+    import_view.keymap.of([
+      ...import_autocomplete.closeBracketsKeymap,
+      ...import_commands.defaultKeymap,
+      ...import_commands.historyKeymap,
+      ...import_autocomplete.completionKeymap,
+      import_commands.indentWithTab
+    ])
+  ];
+  if (options.placeholderText) {
+    extensions.push((0, import_view.placeholder)(options.placeholderText));
+  }
+  if (options.onChange) {
+    const notify = options.onChange;
+    extensions.push(
+      import_view.EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          notify(update.state.doc.toString());
+        }
+      })
+    );
+  }
+  if (options.ariaLabel) {
+    extensions.push(
+      import_view.EditorView.contentAttributes.of({
+        "aria-label": options.ariaLabel,
+        autocapitalize: "off",
+        autocorrect: "off",
+        spellcheck: "false"
+      })
+    );
+  }
+  const view = new import_view.EditorView({
+    state: import_state.EditorState.create({ doc, extensions }),
+    parent
+  });
+  return {
+    getValue() {
+      return view.state.doc.toString();
+    },
+    setValue(value) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value }
+      });
+    },
+    focus() {
+      view.focus();
+    },
+    destroy() {
+      view.destroy();
+    }
+  };
+}
+
+// src/settings.ts
 var DEFAULT_SETTINGS = {
   language: "system",
   rules: [
@@ -42,7 +717,10 @@ var DEFAULT_SETTINGS = {
       id: "rounded-box",
       name: "\u5706\u89D2\u8FB9\u6846",
       delimiter: "++",
-      css: "border: 1px solid var(--interactive-accent); border-radius: 6px; padding: 1px 5px;",
+      css: `border: 1px solid var(--interactive-accent);
+border-radius: 6px;
+padding: 1px 5px;`,
+      className: "",
       enabled: true
     }
   ]
@@ -51,18 +729,62 @@ function newRuleId() {
   return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 function normalizeRule(r) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   return {
     id: typeof r.id === "string" && r.id ? r.id : newRuleId(),
     name: typeof r.name === "string" ? r.name : "",
     delimiter: (_a = r.delimiter) != null ? _a : "",
     css: (_b = r.css) != null ? _b : "",
-    enabled: (_c = r.enabled) != null ? _c : true,
-    conflictWithId: (_d = r.conflictWithId) != null ? _d : null
+    className: sanitizeClassName((_c = r.className) != null ? _c : ""),
+    enabled: (_d = r.enabled) != null ? _d : true,
+    conflictWithId: (_e = r.conflictWithId) != null ? _e : null
   };
 }
 function ruleClassName(id) {
   return `custom-syntax-${id}`;
+}
+function sanitizeClassName(raw) {
+  return (raw != null ? raw : "").split(/\s+/).map((token) => token.trim()).filter((token) => /^-?[A-Za-z_][A-Za-z0-9_-]*$/.test(token)).join(" ");
+}
+function ruleContentClass(id) {
+  return `${ruleClassName(id)}-content`;
+}
+function contentClasses(rule) {
+  const parts = ["custom-syntax-content", ruleContentClass(rule.id)];
+  const extra = sanitizeClassName(rule.className);
+  if (extra) {
+    parts.push(extra);
+  }
+  return parts.join(" ");
+}
+function exportRulesAsCss(rules) {
+  var _a;
+  const blocks = [];
+  for (const rule of rules) {
+    const css = ((_a = rule.css) != null ? _a : "").trim();
+    if (!css) {
+      continue;
+    }
+    const extra = sanitizeClassName(rule.className);
+    const selector = extra ? `.${extra.split(" ").join(".")}` : `.${ruleContentClass(rule.id)}`;
+    const label = rule.name || rule.delimiter || rule.id;
+    const declarations = css.split(";").map((decl) => decl.trim()).filter(Boolean).map((decl) => `	${decl};`).join("\n");
+    blocks.push(
+      `/* ${label} \u2014 ${rule.delimiter} */
+${selector} {
+${declarations}
+}`
+    );
+  }
+  if (blocks.length === 0) {
+    return "";
+  }
+  return [
+    "/* Generated by the Custom Syntax plugin. */",
+    "/* Paste into a CSS snippet, then clear the rule's declarations so the snippet takes over. */",
+    "",
+    ...blocks
+  ].join("\n");
 }
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -131,9 +853,25 @@ var STRINGS = {
     ruleNamePlaceholder: "\u7ED9\u89C4\u5219\u8D77\u4E2A\u540D\u5B57",
     delimiter: "\u5206\u9694\u7B26",
     delimiterDesc: "\u5305\u88F9\u6587\u5B57\u7684\u6807\u8BB0\uFF0C\u4F8B\u5982 ++",
-    css: "CSS \u6837\u5F0F",
-    cssDesc: "\u5E94\u7528\u5230\u5339\u914D\u6587\u5B57\u7684\u539F\u59CB CSS \u58F0\u660E\uFF0C\u4F8B\u5982 border: 1px solid red;",
-    cssPlaceholder: "border: 1px solid var(--interactive-accent); border-radius: 6px;",
+    css: "\u6837\u5F0F\u58F0\u660E",
+    cssDesc: "\u53EA\u5199 CSS \u82B1\u62EC\u53F7 { } \u91CC\u7684\u5185\u5BB9\uFF0C\u4F8B\u5982 color: red;\u3002\u7559\u7A7A\u5219\u5B8C\u5168\u7531\u4E0B\u65B9\u7C7B\u540D\u5728\u4F60\u81EA\u5DF1\u7684 CSS \u7247\u6BB5\u4E2D\u51B3\u5B9A\u6837\u5F0F\u3002",
+    cssPlaceholder: `border: 1px solid var(--interactive-accent);
+border-radius: 6px;
+padding: 1px 5px;`,
+    cssAria: "CSS \u6837\u5F0F\u58F0\u660E",
+    visualEdit: "\u53EF\u89C6\u5316\u7F16\u8F91",
+    visualEditHint: "\u5373\u5C06\u63A8\u51FA\uFF1A\u7528\u56FE\u5F62\u754C\u9762\u8C03\u6574\u6837\u5F0F\uFF0C\u65E0\u9700\u624B\u5199 CSS",
+    className: "\u7C7B\u540D\uFF08\u53EF\u9009\uFF09",
+    classNameDesc: "\u9644\u52A0\u5230\u5339\u914D\u6587\u5B57\u4E0A\u7684 CSS \u7C7B\u540D\uFF0C\u591A\u4E2A\u7528\u7A7A\u683C\u5206\u9694\u3002\u6837\u5F0F\u58F0\u660E\u7559\u7A7A\u65F6\uFF0C\u6837\u5F0F\u5B8C\u5168\u7531\u4F60\u5728 CSS \u7247\u6BB5\u4E2D\u4E3A\u8FD9\u4E2A\u7C7B\u5199\u7684\u89C4\u5219\u51B3\u5B9A\u3002",
+    classNamePlaceholder: "my-highlight",
+    exportName: "\u5BFC\u51FA\u4E3A CSS \u7247\u6BB5",
+    exportDesc: "\u628A\u89C4\u5219\u7684\u6837\u5F0F\u58F0\u660E\u5BFC\u51FA\u6210 CSS \u7247\u6BB5\u3002\u7C98\u5230\u4F60\u7684 CSS \u7247\u6BB5\u6587\u4EF6\u5E76\u542F\u7528\u540E\uFF0C\u6E05\u7A7A\u89C4\u5219\u7684\u6837\u5F0F\u58F0\u660E\u5373\u53EF\u6539\u7531\u7247\u6BB5\u63A7\u5236\uFF0C\u6837\u5F0F\u4E5F\u5C31\u80FD\u88AB\u4E3B\u9898\u590D\u7528\u548C\u8986\u76D6\u3002",
+    exportBtn: "\u5BFC\u51FA",
+    exportTitle: "\u5BFC\u51FA CSS \u7247\u6BB5",
+    exportEmpty: "\u8FD8\u6CA1\u6709\u89C4\u5219\u586B\u5199\u6837\u5F0F\u58F0\u660E\uFF0C\u6CA1\u6709\u53EF\u5BFC\u51FA\u7684\u5185\u5BB9\u3002",
+    copy: "\u590D\u5236\u5230\u526A\u8D34\u677F",
+    copied: "\u5DF2\u590D\u5236",
+    copyFailed: "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u4E2D\u590D\u5236",
     cancel: "\u53D6\u6D88",
     create: "\u521B\u5EFA",
     save: "\u4FDD\u5B58",
@@ -158,9 +896,25 @@ var STRINGS = {
     ruleNamePlaceholder: "Name this rule",
     delimiter: "Delimiter",
     delimiterDesc: "The marker that wraps the text, e.g. ++",
-    css: "CSS",
-    cssDesc: "Raw CSS declarations applied to the matched text, e.g. border: 1px solid red;",
-    cssPlaceholder: "border: 1px solid var(--interactive-accent); border-radius: 6px;",
+    css: "Style declarations",
+    cssDesc: "Write only what goes inside the CSS curly braces { }, e.g. color: red;. Leave empty and the class below decides the styling from your own CSS snippet.",
+    cssPlaceholder: `border: 1px solid var(--interactive-accent);
+border-radius: 6px;
+padding: 1px 5px;`,
+    cssAria: "CSS style declarations",
+    visualEdit: "Visual editor",
+    visualEditHint: "Coming soon: tweak styles in a GUI instead of writing CSS by hand",
+    className: "Class name (optional)",
+    classNameDesc: "CSS class names added to the matched text, separated by spaces. With the declarations left empty, styling comes entirely from the rule you write for this class in a CSS snippet.",
+    classNamePlaceholder: "my-highlight",
+    exportName: "Export as CSS snippet",
+    exportDesc: "Export rule declarations as a CSS snippet. Paste it into a CSS snippet file and enable it, then clear the rule's declarations so the snippet takes over \u2014 that way styles can be reused and overridden by themes.",
+    exportBtn: "Export",
+    exportTitle: "Export CSS snippet",
+    exportEmpty: "No rule has declarations yet, so there is nothing to export.",
+    copy: "Copy to clipboard",
+    copied: "Copied",
+    copyFailed: "Copy failed \u2014 select and copy manually",
     cancel: "Cancel",
     create: "Create",
     save: "Save",
@@ -222,38 +976,58 @@ var RuleModal = class extends import_obsidian.Modal {
     this.onDone = onDone;
   }
   onOpen() {
-    const t = stringsFor(this.plugin.settings.language);
-    this.titleEl.setText(this.rule ? t.editTitle : t.createTitle);
+    var _a, _b;
+    const t2 = stringsFor(this.plugin.settings.language);
+    this.titleEl.setText(this.rule ? t2.editTitle : t2.createTitle);
     const { contentEl } = this;
-    new import_obsidian.Setting(contentEl).setName(t.ruleName).addText((text) => {
-      var _a, _b;
+    new import_obsidian.Setting(contentEl).setName(t2.ruleName).addText((text) => {
+      var _a2, _b2;
       this.nameInput = text.inputEl;
-      text.setValue((_b = (_a = this.rule) == null ? void 0 : _a.name) != null ? _b : "").setPlaceholder(t.ruleNamePlaceholder);
+      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.name) != null ? _b2 : "").setPlaceholder(t2.ruleNamePlaceholder);
     });
-    new import_obsidian.Setting(contentEl).setName(t.delimiter).setDesc(t.delimiterDesc).addText((text) => {
-      var _a, _b;
+    new import_obsidian.Setting(contentEl).setName(t2.delimiter).setDesc(t2.delimiterDesc).addText((text) => {
+      var _a2, _b2;
       this.delimInput = text.inputEl;
-      text.setValue((_b = (_a = this.rule) == null ? void 0 : _a.delimiter) != null ? _b : "++").setPlaceholder("++");
+      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.delimiter) != null ? _b2 : "++").setPlaceholder("++");
       this.delimInput.addEventListener("input", () => {
         this.pendingCustomConflict = null;
         this.clearError();
       });
     });
-    new import_obsidian.Setting(contentEl).setName(t.css).setDesc(t.cssDesc).addTextArea((ta) => {
-      var _a, _b;
-      this.cssInput = ta.inputEl;
-      ta.setValue(
-        (_b = (_a = this.rule) == null ? void 0 : _a.css) != null ? _b : DEFAULT_SETTINGS.rules[0].css
-      ).setPlaceholder(t.cssPlaceholder);
-      this.cssInput.rows = 3;
-      this.cssInput.addClass("custom-syntax-css-input");
+    new import_obsidian.Setting(contentEl).setName(t2.className).setDesc(t2.classNameDesc).addText((text) => {
+      var _a2, _b2;
+      this.classInput = text.inputEl;
+      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.className) != null ? _b2 : "").setPlaceholder(t2.classNamePlaceholder);
     });
+    const cssSetting = new import_obsidian.Setting(contentEl).setName(t2.css).setDesc(t2.cssDesc);
+    cssSetting.settingEl.addClass("custom-syntax-stacked");
+    const cssRow = cssSetting.controlEl.createDiv({
+      cls: "custom-syntax-css-row"
+    });
+    const cssHost = cssRow.createDiv({
+      cls: "custom-syntax-css-editor"
+    });
+    const visualBtn = cssRow.createEl("button", {
+      text: t2.visualEdit,
+      cls: "custom-syntax-visual-edit"
+    });
+    visualBtn.disabled = true;
+    visualBtn.title = t2.visualEditHint;
+    this.cssEditor = createCssEditor(
+      cssHost,
+      (_b = (_a = this.rule) == null ? void 0 : _a.css) != null ? _b : DEFAULT_SETTINGS.rules[0].css,
+      {
+        placeholderText: t2.cssPlaceholder,
+        ariaLabel: t2.cssAria,
+        onSubmit: () => this.onSubmit()
+      }
+    );
     this.errorEl = contentEl.createDiv({ cls: "custom-syntax-error" });
     const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
-    const cancelBtn = btnRow.createEl("button", { text: t.cancel });
+    const cancelBtn = btnRow.createEl("button", { text: t2.cancel });
     cancelBtn.addEventListener("click", () => this.close());
     const submitBtn = btnRow.createEl("button", {
-      text: this.rule ? t.save : t.create,
+      text: this.rule ? t2.save : t2.create,
       cls: "mod-cta"
     });
     submitBtn.addEventListener("click", () => this.onSubmit());
@@ -269,19 +1043,20 @@ var RuleModal = class extends import_obsidian.Modal {
   }
   onSubmit() {
     var _a;
-    const t = stringsFor(this.plugin.settings.language);
+    const t2 = stringsFor(this.plugin.settings.language);
     const lang = resolveLanguage(this.plugin.settings.language);
     const name = this.nameInput.value.trim();
     const delimiter = this.delimInput.value;
-    const css = this.cssInput.value;
+    const css = this.cssEditor.getValue();
+    const className = sanitizeClassName(this.classInput.value);
     if (!delimiter) {
-      this.showError(t.delimiterRequired);
+      this.showError(t2.delimiterRequired);
       return;
     }
     const builtin = findBuiltinConflict(delimiter);
     if (builtin) {
       const nm = lang === "zh" ? builtin.zh : builtin.en;
-      this.showError(t.conflictBuiltin.replace("{name}", nm));
+      this.showError(t2.conflictBuiltin.replace("{name}", nm));
       this.pendingCustomConflict = null;
       return;
     }
@@ -291,25 +1066,32 @@ var RuleModal = class extends import_obsidian.Modal {
       (_a = this.rule) == null ? void 0 : _a.id
     );
     if (custom) {
-      const nm = custom.name || t.untitled;
+      const nm = custom.name || t2.untitled;
       if (this.pendingCustomConflict && this.pendingCustomConflict.id === custom.id) {
-        this.finish(name, delimiter, css, false);
+        this.finish(name, delimiter, css, className, false);
         return;
       }
       this.pendingCustomConflict = custom;
-      const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
+      const msg = this.rule ? t2.conflictCustomSave : t2.conflictCustomCreate;
       this.showError(msg.replace("{name}", nm));
       return;
     }
-    this.finish(name, delimiter, css, this.rule ? this.rule.enabled : true);
+    this.finish(
+      name,
+      delimiter,
+      css,
+      className,
+      this.rule ? this.rule.enabled : true
+    );
   }
-  finish(name, delimiter, css, enabled) {
-    const t = stringsFor(this.plugin.settings.language);
-    const finalName = name || t.untitled;
+  finish(name, delimiter, css, className, enabled) {
+    const t2 = stringsFor(this.plugin.settings.language);
+    const finalName = name || t2.untitled;
     if (this.rule) {
       this.rule.name = finalName;
       this.rule.delimiter = delimiter;
       this.rule.css = css;
+      this.rule.className = className;
       this.rule.enabled = enabled;
       this.rule.conflictWithId = null;
     } else {
@@ -318,6 +1100,7 @@ var RuleModal = class extends import_obsidian.Modal {
         name: finalName,
         delimiter,
         css,
+        className,
         enabled,
         conflictWithId: null
       });
@@ -325,6 +1108,50 @@ var RuleModal = class extends import_obsidian.Modal {
     void this.plugin.saveSettings();
     this.close();
     this.onDone();
+  }
+  onClose() {
+    var _a;
+    (_a = this.cssEditor) == null ? void 0 : _a.destroy();
+    this.contentEl.empty();
+  }
+};
+var ExportModal = class extends import_obsidian.Modal {
+  constructor(app, content, emptyMessage, copyLabel, copiedLabel, failedLabel) {
+    super(app);
+    this.content = content;
+    this.emptyMessage = emptyMessage;
+    this.copyLabel = copyLabel;
+    this.copiedLabel = copiedLabel;
+    this.failedLabel = failedLabel;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    if (!this.content) {
+      contentEl.createEl("p", { text: this.emptyMessage });
+      return;
+    }
+    const area = contentEl.createEl("textarea", {
+      cls: "custom-syntax-export-area"
+    });
+    area.rows = 16;
+    area.readOnly = true;
+    area.spellcheck = false;
+    area.value = this.content;
+    area.setAttribute("aria-label", this.copyLabel);
+    const actions = contentEl.createDiv({
+      cls: "custom-syntax-modal-actions"
+    });
+    const copyBtn = actions.createEl("button", {
+      text: this.copyLabel,
+      cls: "mod-cta"
+    });
+    copyBtn.addEventListener("click", () => {
+      area.select();
+      void navigator.clipboard.writeText(this.content).then(
+        () => copyBtn.setText(this.copiedLabel),
+        () => copyBtn.setText(this.failedLabel)
+      );
+    });
   }
 };
 var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
@@ -335,10 +1162,10 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    const t = stringsFor(this.plugin.settings.language);
+    const t2 = stringsFor(this.plugin.settings.language);
     const nav = containerEl.createDiv({ cls: "custom-syntax-nav" });
     const title = nav.createDiv({ cls: "custom-syntax-nav-title" });
-    title.createSpan({ text: t.pluginName });
+    title.createSpan({ text: t2.pluginName });
     title.createSpan({
       cls: "custom-syntax-nav-version",
       text: `v${this.plugin.manifest.version}`
@@ -347,7 +1174,7 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     const langSelect = actions.createEl("select");
     langSelect.addClass("dropdown");
     const options = [
-      ["system", t.followSystem],
+      ["system", t2.followSystem],
       ["zh", "\u4E2D\u6587"],
       ["en", "English"]
     ];
@@ -363,7 +1190,7 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
       this.display();
     });
     const addBtn = actions.createEl("button", {
-      text: t.addRule,
+      text: t2.addRule,
       cls: "mod-cta"
     });
     addBtn.addEventListener("click", () => {
@@ -373,23 +1200,56 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     this.plugin.settings.rules.forEach((rule) => {
       this.renderRuleCard(list, rule);
     });
+    new import_obsidian.Setting(containerEl).setName(t2.exportName).setDesc(t2.exportDesc).addButton(
+      (btn) => btn.setButtonText(t2.exportBtn).setCta().onClick(() => {
+        new ExportModal(
+          this.app,
+          exportRulesAsCss(this.plugin.settings.rules),
+          t2.exportEmpty,
+          t2.copy,
+          t2.copied,
+          t2.copyFailed
+        ).open();
+      })
+    );
   }
   renderRuleCard(containerEl, rule) {
-    const t = stringsFor(this.plugin.settings.language);
+    const t2 = stringsFor(this.plugin.settings.language);
     const card = containerEl.createDiv({ cls: "custom-syntax-rule-card" });
     const row = card.createDiv({ cls: "custom-syntax-rule-row" });
     const nameEl = row.createDiv({
       cls: "custom-syntax-rule-name",
-      text: rule.name || t.untitled
+      text: rule.name || t2.untitled
     });
     nameEl.title = rule.delimiter;
     const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
+    const editBtn = controls.createEl("button", { cls: "clickable-icon" });
+    editBtn.setAttribute("aria-label", t2.edit);
+    (0, import_obsidian.setIcon)(editBtn, "pencil");
+    editBtn.addEventListener("click", () => {
+      new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
+    });
+    const delBtn = controls.createEl("button", { cls: "clickable-icon" });
+    delBtn.setAttribute("aria-label", t2.delete);
+    (0, import_obsidian.setIcon)(delBtn, "trash");
+    delBtn.addEventListener("click", () => {
+      const name = rule.name || t2.untitled;
+      new ConfirmModal(
+        this.app,
+        t2.deleteConfirm.replace("{name}", name),
+        t2.delete,
+        t2.cancel,
+        () => {
+          void this.deleteRule(rule);
+        }
+      ).open();
+    });
     const toggle = controls.createDiv({
       cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container"
     });
     toggle.setAttribute("role", "switch");
     toggle.setAttribute("aria-checked", String(rule.enabled));
-    toggle.setAttribute("aria-label", t.toggle);
+    toggle.setAttribute("aria-label", t2.toggle);
     toggle.setAttribute("tabindex", "0");
     toggle.addEventListener("click", () => {
       const newVal = !rule.enabled;
@@ -404,27 +1264,13 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
         toggle.click();
       }
     });
-    const editBtn = controls.createEl("button", { cls: "clickable-icon" });
-    editBtn.setAttribute("aria-label", t.edit);
-    (0, import_obsidian.setIcon)(editBtn, "pencil");
-    editBtn.addEventListener("click", () => {
-      new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
-    });
-    const delBtn = controls.createEl("button", { cls: "clickable-icon" });
-    delBtn.setAttribute("aria-label", t.delete);
-    (0, import_obsidian.setIcon)(delBtn, "trash");
-    delBtn.addEventListener("click", () => {
-      const name = rule.name || t.untitled;
-      new ConfirmModal(
-        this.app,
-        t.deleteConfirm.replace("{name}", name),
-        t.delete,
-        t.cancel,
-        () => {
-          void this.deleteRule(rule);
-        }
-      ).open();
-    });
+    const extraClass = sanitizeClassName(rule.className);
+    if (extraClass) {
+      card.createDiv({
+        cls: "custom-syntax-rule-class",
+        text: `.${extraClass.split(" ").join(" .")}`
+      });
+    }
     if (rule.conflictWithId) {
       const other = this.plugin.settings.rules.find(
         (r) => r.id === rule.conflictWithId
@@ -432,9 +1278,9 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
       if (other) {
         card.createDiv({
           cls: "custom-syntax-rule-conflict",
-          text: t.conflictAnnotation.replace(
+          text: t2.conflictAnnotation.replace(
             "{name}",
-            other.name || t.untitled
+            other.name || t2.untitled
           )
         });
       }
@@ -472,7 +1318,7 @@ function collectCodeRanges(view) {
   const ranges = [];
   try {
     for (const { from, to } of view.visibleRanges) {
-      (0, import_language.syntaxTree)(view.state).iterate({
+      (0, import_language3.syntaxTree)(view.state).iterate({
         from,
         to,
         enter(node) {
@@ -498,14 +1344,21 @@ function isInCode(from, to, ranges) {
   return false;
 }
 function buildDecorations(view, rules) {
+  var _a, _b;
   const decos = [];
   const codeRanges = collectCodeRanges(view);
   const scanRanges = view.visibleRanges.length > 0 ? view.visibleRanges : [{ from: 0, to: view.state.doc.length }];
   const sel = view.state.selection.main;
   for (const rule of rules) {
-    if (!rule.enabled || !rule.delimiter || !rule.css) {
+    if (!rule.enabled || !rule.delimiter) {
       continue;
     }
+    const css = ((_a = rule.css) != null ? _a : "").trim();
+    const extraClass = ((_b = rule.className) != null ? _b : "").trim();
+    if (!css && !extraClass) {
+      continue;
+    }
+    const contentCls = contentClasses(rule);
     const delim = rule.delimiter;
     const re = new RegExp(
       `${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
@@ -518,6 +1371,9 @@ function buildDecorations(view, rules) {
       let m;
       while ((m = re.exec(text)) !== null) {
         const content = m[1];
+        if (content.length === 0) {
+          continue;
+        }
         const fullStart = from + m.index;
         const contentStart = fullStart + delim.length;
         const contentEnd = contentStart + content.length;
@@ -528,35 +1384,38 @@ function buildDecorations(view, rules) {
         const active = sel.from <= fullEnd && sel.to >= fullStart;
         if (active) {
           decos.push(
-            import_view.Decoration.mark({
+            import_view2.Decoration.mark({
               class: delimCls
             }).range(fullStart, contentStart)
           );
         } else {
           decos.push(
-            import_view.Decoration.replace({}).range(fullStart, contentStart)
+            import_view2.Decoration.replace({}).range(fullStart, contentStart)
           );
         }
         decos.push(
-          import_view.Decoration.mark({
-            attributes: { style: rule.css }
+          import_view2.Decoration.mark({
+            class: contentCls,
+            // Declarations ride along only when the user wrote any;
+            // an empty field means a CSS snippet owns the styling.
+            attributes: css ? { style: css } : void 0
           }).range(contentStart, contentEnd)
         );
         if (active) {
           decos.push(
-            import_view.Decoration.mark({
+            import_view2.Decoration.mark({
               class: delimCls
             }).range(contentEnd, fullEnd)
           );
         } else {
           decos.push(
-            import_view.Decoration.replace({}).range(contentEnd, fullEnd)
+            import_view2.Decoration.replace({}).range(contentEnd, fullEnd)
           );
         }
       }
     }
   }
-  return import_view.Decoration.set(decos, true);
+  return import_view2.Decoration.set(decos, true);
 }
 function createEditorExtension(getRules) {
   class CustomSyntaxView {
@@ -574,7 +1433,7 @@ function createEditorExtension(getRules) {
   const spec = {
     decorations: (value) => value.decorations
   };
-  return import_view.ViewPlugin.fromClass(CustomSyntaxView, spec);
+  return import_view2.ViewPlugin.fromClass(CustomSyntaxView, spec);
 }
 
 // src/postProcessor.ts
@@ -605,8 +1464,12 @@ function cssToRecord(css) {
   return result;
 }
 function applyRule(root, rule) {
-  var _a, _b, _c;
-  if (!rule.enabled || !rule.delimiter || !rule.css) {
+  var _a, _b, _c, _d, _e;
+  if (!rule.enabled || !rule.delimiter) {
+    return;
+  }
+  const css = ((_a = rule.css) != null ? _a : "").trim();
+  if (!css && !((_b = rule.className) != null ? _b : "").trim()) {
     return;
   }
   const delim = rule.delimiter;
@@ -614,21 +1477,23 @@ function applyRule(root, rule) {
     `${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
     "g"
   );
-  const cssRecord = cssToRecord(rule.css);
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const cssRecord = css ? cssToRecord(css) : null;
+  const classes = contentClasses(rule);
+  const doc = root.ownerDocument;
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const textNodes = [];
   while (walker.nextNode()) {
     const node = walker.currentNode;
     if (shouldSkip(node)) {
       continue;
     }
-    if (((_a = node.nodeValue) != null ? _a : "").length === 0) {
+    if (((_c = node.nodeValue) != null ? _c : "").length === 0) {
       continue;
     }
     textNodes.push(node);
   }
   for (const node of textNodes) {
-    const text = (_b = node.nodeValue) != null ? _b : "";
+    const text = (_d = node.nodeValue) != null ? _d : "";
     if (!re.test(text)) {
       re.lastIndex = 0;
       continue;
@@ -639,10 +1504,19 @@ function applyRule(root, rule) {
     let m;
     while ((m = re.exec(text)) !== null) {
       if (m.index > lastIndex) {
-        fragment.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
+        fragment.appendChild(
+          doc.createTextNode(text.slice(lastIndex, m.index))
+        );
+      }
+      if (m[1].length === 0) {
+        lastIndex = m.index + m[0].length;
+        continue;
       }
       const span = createSpan();
-      span.setCssStyles(cssRecord);
+      span.addClasses(classes.split(" "));
+      if (cssRecord) {
+        span.setCssStyles(cssRecord);
+      }
       span.textContent = m[1];
       fragment.appendChild(span);
       lastIndex = m.index + m[0].length;
@@ -651,9 +1525,11 @@ function applyRule(root, rule) {
       }
     }
     if (lastIndex < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      fragment.appendChild(doc.createTextNode(text.slice(lastIndex)));
     }
-    (_c = node.parentNode) == null ? void 0 : _c.replaceChild(fragment, node);
+    if (fragment.childNodes.length > 0) {
+      (_e = node.parentNode) == null ? void 0 : _e.replaceChild(fragment, node);
+    }
   }
 }
 
@@ -696,5 +1572,19 @@ var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
     this.editorExtension.length = 0;
     this.editorExtension.push(createEditorExtension(() => this.settings.rules));
     this.app.workspace.updateOptions();
+    this.rerenderPreviews();
+  }
+  /**
+   * `updateOptions()` only refreshes editors. Reading view content is
+   * produced once by the post-processor, so it has to be re-rendered
+   * explicitly for a rule change to show up there.
+   */
+  rerenderPreviews() {
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const view = leaf.view;
+      if (view instanceof import_obsidian2.MarkdownView && view.previewMode) {
+        view.previewMode.rerender(true);
+      }
+    });
   }
 };

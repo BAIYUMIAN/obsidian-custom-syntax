@@ -1,4 +1,4 @@
-import { escapeRegExp, SyntaxRule } from "./settings";
+import { contentClasses, escapeRegExp, SyntaxRule } from "./settings";
 
 function shouldSkip(node: Node): boolean {
 	let el = node.parentElement;
@@ -36,7 +36,12 @@ function cssToRecord(css: string): Record<string, string> {
 }
 
 export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
-	if (!rule.enabled || !rule.delimiter || !rule.css) {
+	if (!rule.enabled || !rule.delimiter) {
+		return;
+	}
+
+	const css = (rule.css ?? "").trim();
+	if (!css && !(rule.className ?? "").trim()) {
 		return;
 	}
 
@@ -45,9 +50,13 @@ export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 		`${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
 		"g"
 	);
-	const cssRecord = cssToRecord(rule.css);
+	const cssRecord = css ? cssToRecord(css) : null;
+	const classes = contentClasses(rule);
 
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	// Resolve the document from the node itself so this also works inside a
+	// popped-out window.
+	const doc = root.ownerDocument;
+	const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
 	const textNodes: Text[] = [];
 	while (walker.nextNode()) {
 		const node = walker.currentNode as Text;
@@ -73,11 +82,23 @@ export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 		let m: RegExpExecArray | null;
 		while ((m = re.exec(text)) !== null) {
 			if (m.index > lastIndex) {
-				fragment.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
+				fragment.appendChild(
+					doc.createTextNode(text.slice(lastIndex, m.index))
+				);
+			}
+
+			// A delimiter pair with nothing inside (e.g. "++++") has no
+			// content to style — skip it so we don't emit an empty box.
+			if (m[1].length === 0) {
+				lastIndex = m.index + m[0].length;
+				continue;
 			}
 
 			const span = createSpan();
-			span.setCssStyles(cssRecord);
+			span.addClasses(classes.split(" "));
+			if (cssRecord) {
+				span.setCssStyles(cssRecord);
+			}
 			span.textContent = m[1];
 			fragment.appendChild(span);
 
@@ -87,9 +108,15 @@ export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 			}
 		}
 		if (lastIndex < text.length) {
-			fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+			fragment.appendChild(doc.createTextNode(text.slice(lastIndex)));
 		}
 
-		node.parentNode?.replaceChild(fragment, node);
+		// If every match was an empty-content pair (e.g. "++++"), the
+		// fragment may have no child nodes at all. Replacing the original
+		// text node with an empty fragment would silently delete the text,
+		// so we skip replacement and leave the raw delimiter visible.
+		if (fragment.childNodes.length > 0) {
+			node.parentNode?.replaceChild(fragment, node);
+		}
 	}
 }
