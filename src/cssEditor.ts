@@ -12,12 +12,13 @@ import {
 } from "@codemirror/commands";
 import {
 	bracketMatching,
-	HighlightStyle,
 	indentUnit,
-	syntaxHighlighting,
+	syntaxTree,
 } from "@codemirror/language";
-import { EditorState, Prec } from "@codemirror/state";
+import { EditorState, Prec, Range } from "@codemirror/state";
 import {
+	Decoration,
+	type DecorationSet,
 	drawSelection,
 	EditorView,
 	highlightActiveLine,
@@ -27,26 +28,70 @@ import {
 	placeholder,
 	rectangularSelection,
 	tooltips,
+	ViewPlugin,
+	type ViewUpdate,
 } from "@codemirror/view";
-import { tags as t } from "@lezer/highlight";
 import { cssDeclarations } from "./cssDeclarations";
 
 /**
- * Token colours are expressed with Obsidian's own CSS variables so the editor
- * follows whatever theme (light or dark) the user has active. Obsidian defines
- * --color-* from the user's accent palette, and --text-* for semantic text.
+ * Map the stream parser's token style strings to our own, namespaced CSS
+ * classes. We deliberately do NOT use CodeMirror's `HighlightStyle` + injected
+ * `<style>`: inside an Obsidian modal its auto-generated class names and the
+ * `var(--…)` colours it injects are not reliably applied, so nothing gets
+ * coloured. Defining the colours in this plugin's own `styles.css` (scoped via
+ * `.custom-syntax-css-editor`) is guaranteed to render.
  */
-const cssHighlight = HighlightStyle.define([
-	{ tag: t.comment, color: "var(--text-faint)", fontStyle: "italic" },
-	{ tag: t.propertyName, color: "var(--text-accent)" },
-	{ tag: t.variableName, color: "var(--color-yellow)" },
-	{ tag: t.function(t.variableName), color: "var(--color-purple)" },
-	{ tag: [t.atom, t.keyword], color: "var(--color-blue)" },
-	{ tag: [t.number, t.unit], color: "var(--color-orange)" },
-	{ tag: t.string, color: "var(--color-green)" },
-	{ tag: t.punctuation, color: "var(--text-muted)" },
-	{ tag: t.invalid, color: "var(--color-red)" },
-]);
+const TOKEN_CLASS: Record<string, string> = {
+	comment: "cs-tok-comment",
+	prop: "cs-tok-prop",
+	propertyName: "cs-tok-prop",
+	variable: "cs-tok-var",
+	variableName: "cs-tok-var",
+	fn: "cs-tok-fn",
+	number: "cs-tok-num",
+	unit: "cs-tok-unit",
+	value: "cs-tok-val",
+	atom: "cs-tok-val",
+	string: "cs-tok-str",
+	important: "cs-tok-kw",
+	keyword: "cs-tok-kw",
+	punct: "cs-tok-punct",
+	punctuation: "cs-tok-punct",
+};
+
+function buildHighlight(view: EditorView): DecorationSet {
+	const builder: Range<Decoration>[] = [];
+	for (const { from, to } of view.visibleRanges) {
+		syntaxTree(view.state).iterate({
+			from,
+			to,
+			enter: (node) => {
+				const cls = TOKEN_CLASS[node.name];
+				if (cls && node.from < node.to) {
+					builder.push(
+						Decoration.mark({ class: cls }).range(node.from, node.to)
+					);
+				}
+			},
+		});
+	}
+	return Decoration.set(builder, true);
+}
+
+const cssHighlightPlugin = ViewPlugin.fromClass(
+	class {
+		decorations: DecorationSet;
+		constructor(view: EditorView) {
+			this.decorations = buildHighlight(view);
+		}
+		update(update: ViewUpdate): void {
+			if (update.docChanged || update.viewportChanged) {
+				this.decorations = buildHighlight(update.view);
+			}
+		}
+	},
+	{ decorations: (v) => v.decorations }
+);
 
 export interface CssEditorOptions {
 	placeholderText?: string;
@@ -85,13 +130,13 @@ export function createCssEditor(
 		bracketMatching(),
 		closeBrackets(),
 		autocompletion({ icons: false }),
-		// Keep completion/​lint popups inside our own container so they pick up
+		// Keep completion/lint popups inside our own container so they pick up
 		// scoped styles instead of leaking into Obsidian's global editors.
 		tooltips({ parent }),
 		EditorView.lineWrapping,
 		indentUnit.of("  "),
 		cssDeclarations,
-		syntaxHighlighting(cssHighlight),
+		cssHighlightPlugin,
 		// Ctrl/Cmd+Enter submits the surrounding dialog before the default
 		// keymap can turn it into a newline.
 		Prec.highest(

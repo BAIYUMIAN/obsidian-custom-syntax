@@ -152,6 +152,39 @@
 	background-color: var(--background-modifier-form-field);
 }
 
+/* Token colours for the declarations editor. Defined here (not via CM's
+   injected <style>) so they are guaranteed to render inside Obsidian modals
+   and follow the active light/dark theme. */
+.custom-syntax-css-editor .cs-tok-comment {
+	color: var(--text-faint);
+	font-style: italic;
+}
+.custom-syntax-css-editor .cs-tok-prop {
+	color: var(--text-accent);
+}
+.custom-syntax-css-editor .cs-tok-var {
+	color: var(--color-yellow);
+}
+.custom-syntax-css-editor .cs-tok-fn {
+	color: var(--color-purple);
+}
+.custom-syntax-css-editor .cs-tok-val {
+	color: var(--color-blue);
+}
+.custom-syntax-css-editor .cs-tok-kw {
+	color: var(--color-blue);
+}
+.custom-syntax-css-editor .cs-tok-num,
+.custom-syntax-css-editor .cs-tok-unit {
+	color: var(--color-orange);
+}
+.custom-syntax-css-editor .cs-tok-str {
+	color: var(--color-green);
+}
+.custom-syntax-css-editor .cs-tok-punct {
+	color: var(--text-muted);
+}
+
 .custom-syntax-css-editor .cm-editor {
 	background-color: transparent;
 	color: var(--text-normal);

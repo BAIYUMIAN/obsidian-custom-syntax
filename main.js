@@ -42,7 +42,6 @@ var import_commands = require("@codemirror/commands");
 var import_language2 = require("@codemirror/language");
 var import_state = require("@codemirror/state");
 var import_view = require("@codemirror/view");
-var import_highlight2 = require("@lezer/highlight");
 
 // src/cssDeclarations.ts
 var import_language = require("@codemirror/language");
@@ -610,17 +609,54 @@ function cssDeclarationsCompletion(context) {
 }
 
 // src/cssEditor.ts
-var cssHighlight = import_language2.HighlightStyle.define([
-  { tag: import_highlight2.tags.comment, color: "var(--text-faint)", fontStyle: "italic" },
-  { tag: import_highlight2.tags.propertyName, color: "var(--text-accent)" },
-  { tag: import_highlight2.tags.variableName, color: "var(--color-yellow)" },
-  { tag: import_highlight2.tags.function(import_highlight2.tags.variableName), color: "var(--color-purple)" },
-  { tag: [import_highlight2.tags.atom, import_highlight2.tags.keyword], color: "var(--color-blue)" },
-  { tag: [import_highlight2.tags.number, import_highlight2.tags.unit], color: "var(--color-orange)" },
-  { tag: import_highlight2.tags.string, color: "var(--color-green)" },
-  { tag: import_highlight2.tags.punctuation, color: "var(--text-muted)" },
-  { tag: import_highlight2.tags.invalid, color: "var(--color-red)" }
-]);
+var TOKEN_CLASS = {
+  comment: "cs-tok-comment",
+  prop: "cs-tok-prop",
+  propertyName: "cs-tok-prop",
+  variable: "cs-tok-var",
+  variableName: "cs-tok-var",
+  fn: "cs-tok-fn",
+  number: "cs-tok-num",
+  unit: "cs-tok-unit",
+  value: "cs-tok-val",
+  atom: "cs-tok-val",
+  string: "cs-tok-str",
+  important: "cs-tok-kw",
+  keyword: "cs-tok-kw",
+  punct: "cs-tok-punct",
+  punctuation: "cs-tok-punct"
+};
+function buildHighlight(view) {
+  const builder = [];
+  for (const { from, to } of view.visibleRanges) {
+    (0, import_language2.syntaxTree)(view.state).iterate({
+      from,
+      to,
+      enter: (node) => {
+        const cls = TOKEN_CLASS[node.name];
+        if (cls && node.from < node.to) {
+          builder.push(
+            import_view.Decoration.mark({ class: cls }).range(node.from, node.to)
+          );
+        }
+      }
+    });
+  }
+  return import_view.Decoration.set(builder, true);
+}
+var cssHighlightPlugin = import_view.ViewPlugin.fromClass(
+  class {
+    constructor(view) {
+      this.decorations = buildHighlight(view);
+    }
+    update(update) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = buildHighlight(update.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations }
+);
 function createCssEditor(parent, doc, options = {}) {
   const extensions = [
     import_view.EditorView.editorAttributes.of({ class: "custom-syntax-cm-editor" }),
@@ -633,13 +669,13 @@ function createCssEditor(parent, doc, options = {}) {
     (0, import_language2.bracketMatching)(),
     (0, import_autocomplete.closeBrackets)(),
     (0, import_autocomplete.autocompletion)({ icons: false }),
-    // Keep completion/​lint popups inside our own container so they pick up
+    // Keep completion/lint popups inside our own container so they pick up
     // scoped styles instead of leaking into Obsidian's global editors.
     (0, import_view.tooltips)({ parent }),
     import_view.EditorView.lineWrapping,
     import_language2.indentUnit.of("  "),
     cssDeclarations,
-    (0, import_language2.syntaxHighlighting)(cssHighlight),
+    cssHighlightPlugin,
     // Ctrl/Cmd+Enter submits the surrounding dialog before the default
     // keymap can turn it into a newline.
     import_state.Prec.highest(
@@ -977,15 +1013,15 @@ var RuleModal = class extends import_obsidian.Modal {
   }
   onOpen() {
     var _a, _b;
-    const t2 = stringsFor(this.plugin.settings.language);
-    this.titleEl.setText(this.rule ? t2.editTitle : t2.createTitle);
+    const t = stringsFor(this.plugin.settings.language);
+    this.titleEl.setText(this.rule ? t.editTitle : t.createTitle);
     const { contentEl } = this;
-    new import_obsidian.Setting(contentEl).setName(t2.ruleName).addText((text) => {
+    new import_obsidian.Setting(contentEl).setName(t.ruleName).addText((text) => {
       var _a2, _b2;
       this.nameInput = text.inputEl;
-      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.name) != null ? _b2 : "").setPlaceholder(t2.ruleNamePlaceholder);
+      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.name) != null ? _b2 : "").setPlaceholder(t.ruleNamePlaceholder);
     });
-    new import_obsidian.Setting(contentEl).setName(t2.delimiter).setDesc(t2.delimiterDesc).addText((text) => {
+    new import_obsidian.Setting(contentEl).setName(t.delimiter).setDesc(t.delimiterDesc).addText((text) => {
       var _a2, _b2;
       this.delimInput = text.inputEl;
       text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.delimiter) != null ? _b2 : "++").setPlaceholder("++");
@@ -994,12 +1030,12 @@ var RuleModal = class extends import_obsidian.Modal {
         this.clearError();
       });
     });
-    new import_obsidian.Setting(contentEl).setName(t2.className).setDesc(t2.classNameDesc).addText((text) => {
+    new import_obsidian.Setting(contentEl).setName(t.className).setDesc(t.classNameDesc).addText((text) => {
       var _a2, _b2;
       this.classInput = text.inputEl;
-      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.className) != null ? _b2 : "").setPlaceholder(t2.classNamePlaceholder);
+      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.className) != null ? _b2 : "").setPlaceholder(t.classNamePlaceholder);
     });
-    const cssSetting = new import_obsidian.Setting(contentEl).setName(t2.css).setDesc(t2.cssDesc);
+    const cssSetting = new import_obsidian.Setting(contentEl).setName(t.css).setDesc(t.cssDesc);
     cssSetting.settingEl.addClass("custom-syntax-stacked");
     const cssRow = cssSetting.controlEl.createDiv({
       cls: "custom-syntax-css-row"
@@ -1008,26 +1044,26 @@ var RuleModal = class extends import_obsidian.Modal {
       cls: "custom-syntax-css-editor"
     });
     const visualBtn = cssRow.createEl("button", {
-      text: t2.visualEdit,
+      text: t.visualEdit,
       cls: "custom-syntax-visual-edit"
     });
     visualBtn.disabled = true;
-    visualBtn.title = t2.visualEditHint;
+    visualBtn.title = t.visualEditHint;
     this.cssEditor = createCssEditor(
       cssHost,
       (_b = (_a = this.rule) == null ? void 0 : _a.css) != null ? _b : DEFAULT_SETTINGS.rules[0].css,
       {
-        placeholderText: t2.cssPlaceholder,
-        ariaLabel: t2.cssAria,
+        placeholderText: t.cssPlaceholder,
+        ariaLabel: t.cssAria,
         onSubmit: () => this.onSubmit()
       }
     );
     this.errorEl = contentEl.createDiv({ cls: "custom-syntax-error" });
     const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
-    const cancelBtn = btnRow.createEl("button", { text: t2.cancel });
+    const cancelBtn = btnRow.createEl("button", { text: t.cancel });
     cancelBtn.addEventListener("click", () => this.close());
     const submitBtn = btnRow.createEl("button", {
-      text: this.rule ? t2.save : t2.create,
+      text: this.rule ? t.save : t.create,
       cls: "mod-cta"
     });
     submitBtn.addEventListener("click", () => this.onSubmit());
@@ -1043,20 +1079,20 @@ var RuleModal = class extends import_obsidian.Modal {
   }
   onSubmit() {
     var _a;
-    const t2 = stringsFor(this.plugin.settings.language);
+    const t = stringsFor(this.plugin.settings.language);
     const lang = resolveLanguage(this.plugin.settings.language);
     const name = this.nameInput.value.trim();
     const delimiter = this.delimInput.value;
     const css = this.cssEditor.getValue();
     const className = sanitizeClassName(this.classInput.value);
     if (!delimiter) {
-      this.showError(t2.delimiterRequired);
+      this.showError(t.delimiterRequired);
       return;
     }
     const builtin = findBuiltinConflict(delimiter);
     if (builtin) {
       const nm = lang === "zh" ? builtin.zh : builtin.en;
-      this.showError(t2.conflictBuiltin.replace("{name}", nm));
+      this.showError(t.conflictBuiltin.replace("{name}", nm));
       this.pendingCustomConflict = null;
       return;
     }
@@ -1066,13 +1102,13 @@ var RuleModal = class extends import_obsidian.Modal {
       (_a = this.rule) == null ? void 0 : _a.id
     );
     if (custom) {
-      const nm = custom.name || t2.untitled;
+      const nm = custom.name || t.untitled;
       if (this.pendingCustomConflict && this.pendingCustomConflict.id === custom.id) {
         this.finish(name, delimiter, css, className, false);
         return;
       }
       this.pendingCustomConflict = custom;
-      const msg = this.rule ? t2.conflictCustomSave : t2.conflictCustomCreate;
+      const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
       this.showError(msg.replace("{name}", nm));
       return;
     }
@@ -1085,8 +1121,8 @@ var RuleModal = class extends import_obsidian.Modal {
     );
   }
   finish(name, delimiter, css, className, enabled) {
-    const t2 = stringsFor(this.plugin.settings.language);
-    const finalName = name || t2.untitled;
+    const t = stringsFor(this.plugin.settings.language);
+    const finalName = name || t.untitled;
     if (this.rule) {
       this.rule.name = finalName;
       this.rule.delimiter = delimiter;
@@ -1162,10 +1198,10 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    const t2 = stringsFor(this.plugin.settings.language);
+    const t = stringsFor(this.plugin.settings.language);
     const nav = containerEl.createDiv({ cls: "custom-syntax-nav" });
     const title = nav.createDiv({ cls: "custom-syntax-nav-title" });
-    title.createSpan({ text: t2.pluginName });
+    title.createSpan({ text: t.pluginName });
     title.createSpan({
       cls: "custom-syntax-nav-version",
       text: `v${this.plugin.manifest.version}`
@@ -1174,7 +1210,7 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     const langSelect = actions.createEl("select");
     langSelect.addClass("dropdown");
     const options = [
-      ["system", t2.followSystem],
+      ["system", t.followSystem],
       ["zh", "\u4E2D\u6587"],
       ["en", "English"]
     ];
@@ -1190,7 +1226,7 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
       this.display();
     });
     const addBtn = actions.createEl("button", {
-      text: t2.addRule,
+      text: t.addRule,
       cls: "mod-cta"
     });
     addBtn.addEventListener("click", () => {
@@ -1200,45 +1236,45 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     this.plugin.settings.rules.forEach((rule) => {
       this.renderRuleCard(list, rule);
     });
-    new import_obsidian.Setting(containerEl).setName(t2.exportName).setDesc(t2.exportDesc).addButton(
-      (btn) => btn.setButtonText(t2.exportBtn).setCta().onClick(() => {
+    new import_obsidian.Setting(containerEl).setName(t.exportName).setDesc(t.exportDesc).addButton(
+      (btn) => btn.setButtonText(t.exportBtn).setCta().onClick(() => {
         new ExportModal(
           this.app,
           exportRulesAsCss(this.plugin.settings.rules),
-          t2.exportEmpty,
-          t2.copy,
-          t2.copied,
-          t2.copyFailed
+          t.exportEmpty,
+          t.copy,
+          t.copied,
+          t.copyFailed
         ).open();
       })
     );
   }
   renderRuleCard(containerEl, rule) {
-    const t2 = stringsFor(this.plugin.settings.language);
+    const t = stringsFor(this.plugin.settings.language);
     const card = containerEl.createDiv({ cls: "custom-syntax-rule-card" });
     const row = card.createDiv({ cls: "custom-syntax-rule-row" });
     const nameEl = row.createDiv({
       cls: "custom-syntax-rule-name",
-      text: rule.name || t2.untitled
+      text: rule.name || t.untitled
     });
     nameEl.title = rule.delimiter;
     const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
     const editBtn = controls.createEl("button", { cls: "clickable-icon" });
-    editBtn.setAttribute("aria-label", t2.edit);
+    editBtn.setAttribute("aria-label", t.edit);
     (0, import_obsidian.setIcon)(editBtn, "pencil");
     editBtn.addEventListener("click", () => {
       new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
     });
     const delBtn = controls.createEl("button", { cls: "clickable-icon" });
-    delBtn.setAttribute("aria-label", t2.delete);
+    delBtn.setAttribute("aria-label", t.delete);
     (0, import_obsidian.setIcon)(delBtn, "trash");
     delBtn.addEventListener("click", () => {
-      const name = rule.name || t2.untitled;
+      const name = rule.name || t.untitled;
       new ConfirmModal(
         this.app,
-        t2.deleteConfirm.replace("{name}", name),
-        t2.delete,
-        t2.cancel,
+        t.deleteConfirm.replace("{name}", name),
+        t.delete,
+        t.cancel,
         () => {
           void this.deleteRule(rule);
         }
@@ -1249,7 +1285,7 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     });
     toggle.setAttribute("role", "switch");
     toggle.setAttribute("aria-checked", String(rule.enabled));
-    toggle.setAttribute("aria-label", t2.toggle);
+    toggle.setAttribute("aria-label", t.toggle);
     toggle.setAttribute("tabindex", "0");
     toggle.addEventListener("click", () => {
       const newVal = !rule.enabled;
@@ -1278,9 +1314,9 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
       if (other) {
         card.createDiv({
           cls: "custom-syntax-rule-conflict",
-          text: t2.conflictAnnotation.replace(
+          text: t.conflictAnnotation.replace(
             "{name}",
-            other.name || t2.untitled
+            other.name || t.untitled
           )
         });
       }
