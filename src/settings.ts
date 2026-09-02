@@ -325,7 +325,6 @@ class RuleModal extends Modal {
 			});
 
 		this.errorEl = contentEl.createDiv({ cls: "custom-syntax-error" });
-		this.errorEl.style.display = "none";
 
 		const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
 		const cancelBtn = btnRow.createEl("button", { text: t.cancel });
@@ -340,13 +339,13 @@ class RuleModal extends Modal {
 
 	private clearError(): void {
 		this.errorEl.empty();
-		this.errorEl.style.display = "none";
+		this.errorEl.removeClass("is-visible");
 	}
 
 	private showError(msg: string): void {
 		this.errorEl.empty();
-		this.errorEl.createEl("span", { text: msg });
-		this.errorEl.style.display = "block";
+		this.errorEl.createSpan({ text: msg });
+		this.errorEl.addClass("is-visible");
 	}
 
 	private onSubmit(): void {
@@ -418,7 +417,7 @@ class RuleModal extends Modal {
 			});
 		}
 
-		this.plugin.saveSettings();
+		void this.plugin.saveSettings();
 		this.close();
 		this.onDone();
 	}
@@ -432,11 +431,6 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-empty-function
-	getSettingDefinitions() {
-		return [];
-	}
-
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
@@ -444,15 +438,15 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 
 		const nav = containerEl.createDiv({ cls: "custom-syntax-nav" });
 		const title = nav.createDiv({ cls: "custom-syntax-nav-title" });
-		title.createEl("span", { text: t.pluginName });
-		title.createEl("span", {
+		title.createSpan({ text: t.pluginName });
+		title.createSpan({
 			cls: "custom-syntax-nav-version",
 			text: `v${this.plugin.manifest.version}`,
 		});
 
 		const actions = nav.createDiv({ cls: "custom-syntax-nav-actions" });
 
-		const langSelect = actions.createEl("select") as HTMLSelectElement;
+		const langSelect = actions.createEl("select");
 		langSelect.addClass("dropdown");
 		const options: Array<[Language, string]> = [
 			["system", t.followSystem],
@@ -463,12 +457,11 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 			const opt = langSelect.createEl("option");
 			opt.value = value;
 			opt.textContent = label;
-			langSelect.appendChild(opt);
 		}
 		langSelect.value = this.plugin.settings.language;
-		langSelect.addEventListener("change", async () => {
+		langSelect.addEventListener("change", () => {
 			this.plugin.settings.language = langSelect.value as Language;
-			await this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 			this.display();
 		});
 
@@ -508,11 +501,11 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 		toggle.setAttribute("aria-checked", String(rule.enabled));
 		toggle.setAttribute("aria-label", t.toggle);
 		toggle.setAttribute("tabindex", "0");
-		toggle.addEventListener("click", async () => {
+		toggle.addEventListener("click", () => {
 			const newVal = !rule.enabled;
 			toggle.toggleClass("is-enabled", newVal);
 			toggle.setAttribute("aria-checked", String(newVal));
-			await this.toggleRule(rule, newVal);
+			void this.toggleRule(rule, newVal);
 			window.setTimeout(() => this.display(), 180);
 		});
 		toggle.addEventListener("keydown", (ev: KeyboardEvent) => {
@@ -539,8 +532,10 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 				t.deleteConfirm.replace("{name}", name),
 				t.delete,
 				t.cancel,
-				() => this.deleteRule(rule)
-			).open();
+			() => {
+				void this.deleteRule(rule);
+			}
+		).open();
 		});
 
 		if (rule.conflictWithId) {

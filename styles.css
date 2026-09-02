@@ -74,14 +74,19 @@
 	color: var(--text-error);
 }
 
-/* Rule editor modal. */
+/* Rule editor modal error banner (hidden until it has a message). */
 .custom-syntax-error {
+	display: none;
 	color: #fff;
 	font-size: var(--font-ui-small);
 	margin: 8px 0;
 	padding: 8px;
 	border-radius: 6px;
 	background-color: var(--color-red, #e81123);
+}
+
+.custom-syntax-error.is-visible {
+	display: block;
 }
 
 .custom-syntax-modal-actions {

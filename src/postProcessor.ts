@@ -68,7 +68,7 @@ export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 		}
 		re.lastIndex = 0;
 
-		const fragment = document.createDocumentFragment();
+		const fragment = createFragment();
 		let lastIndex = 0;
 		let m: RegExpExecArray | null;
 		while ((m = re.exec(text)) !== null) {
@@ -76,7 +76,7 @@ export function applyRule(root: HTMLElement, rule: SyntaxRule): void {
 				fragment.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
 			}
 
-			const span = root.createEl("span");
+			const span = createSpan();
 			span.setCssStyles(cssRecord);
 			span.textContent = m[1];
 			fragment.appendChild(span);

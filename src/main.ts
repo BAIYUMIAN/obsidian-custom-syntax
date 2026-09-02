@@ -1,5 +1,5 @@
 import { Extension } from "@codemirror/state";
-import { MarkdownView, Plugin } from "obsidian";
+import { Plugin } from "obsidian";
 import { createEditorExtension } from "./editorExtension";
 import { applyRule } from "./postProcessor";
 import {
@@ -39,11 +39,7 @@ export default class CustomSyntaxPlugin extends Plugin {
 			lang === "en" || lang === "zh" || lang === "system" ? lang : "system";
 
 		const rules = data?.rules;
-		if (
-			Array.isArray(rules) &&
-			rules.length > 0 &&
-			typeof rules[0].css === "string"
-		) {
+		if (Array.isArray(rules)) {
 			this.settings.rules = rules.map((r) => normalizeRule(r));
 		} else {
 			this.settings.rules = DEFAULT_SETTINGS.rules.map((r) => ({ ...r }));

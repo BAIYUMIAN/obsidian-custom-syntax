@@ -11,11 +11,6 @@ import {
 } from "@codemirror/view";
 import { escapeRegExp, ruleClassName, SyntaxRule } from "./settings";
 
-let settingsVersion = 0;
-export function bumpSettingsVersion(): void {
-	settingsVersion++;
-}
-
 interface CodeRange {
 	from: number;
 	to: number;
@@ -140,10 +135,8 @@ export function createEditorExtension(
 ): Extension {
 	class CustomSyntaxView implements PluginValue {
 		decorations: DecorationSet;
-		private version = -1;
 
 		constructor(view: EditorView) {
-			this.version = settingsVersion;
 			this.decorations = buildDecorations(view, getRules());
 		}
 
@@ -151,10 +144,8 @@ export function createEditorExtension(
 			if (
 				update.docChanged ||
 				update.viewportChanged ||
-				update.selectionSet ||
-				this.version !== settingsVersion
+				update.selectionSet
 			) {
-				this.version = settingsVersion;
 				this.decorations = buildDecorations(update.view, getRules());
 			}
 		}

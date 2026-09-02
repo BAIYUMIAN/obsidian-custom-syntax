@@ -249,7 +249,6 @@ var RuleModal = class extends import_obsidian.Modal {
       this.cssInput.addClass("custom-syntax-css-input");
     });
     this.errorEl = contentEl.createDiv({ cls: "custom-syntax-error" });
-    this.errorEl.style.display = "none";
     const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
     const cancelBtn = btnRow.createEl("button", { text: t.cancel });
     cancelBtn.addEventListener("click", () => this.close());
@@ -261,12 +260,12 @@ var RuleModal = class extends import_obsidian.Modal {
   }
   clearError() {
     this.errorEl.empty();
-    this.errorEl.style.display = "none";
+    this.errorEl.removeClass("is-visible");
   }
   showError(msg) {
     this.errorEl.empty();
-    this.errorEl.createEl("span", { text: msg });
-    this.errorEl.style.display = "block";
+    this.errorEl.createSpan({ text: msg });
+    this.errorEl.addClass("is-visible");
   }
   onSubmit() {
     var _a;
@@ -323,7 +322,7 @@ var RuleModal = class extends import_obsidian.Modal {
         conflictWithId: null
       });
     }
-    this.plugin.saveSettings();
+    void this.plugin.saveSettings();
     this.close();
     this.onDone();
   }
@@ -333,18 +332,14 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     super(app, plugin);
     this.plugin = plugin;
   }
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  getSettingDefinitions() {
-    return [];
-  }
   display() {
     const { containerEl } = this;
     containerEl.empty();
     const t = stringsFor(this.plugin.settings.language);
     const nav = containerEl.createDiv({ cls: "custom-syntax-nav" });
     const title = nav.createDiv({ cls: "custom-syntax-nav-title" });
-    title.createEl("span", { text: t.pluginName });
-    title.createEl("span", {
+    title.createSpan({ text: t.pluginName });
+    title.createSpan({
       cls: "custom-syntax-nav-version",
       text: `v${this.plugin.manifest.version}`
     });
@@ -360,12 +355,11 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
       const opt = langSelect.createEl("option");
       opt.value = value;
       opt.textContent = label;
-      langSelect.appendChild(opt);
     }
     langSelect.value = this.plugin.settings.language;
-    langSelect.addEventListener("change", async () => {
+    langSelect.addEventListener("change", () => {
       this.plugin.settings.language = langSelect.value;
-      await this.plugin.saveSettings();
+      void this.plugin.saveSettings();
       this.display();
     });
     const addBtn = actions.createEl("button", {
@@ -397,11 +391,11 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
     toggle.setAttribute("aria-checked", String(rule.enabled));
     toggle.setAttribute("aria-label", t.toggle);
     toggle.setAttribute("tabindex", "0");
-    toggle.addEventListener("click", async () => {
+    toggle.addEventListener("click", () => {
       const newVal = !rule.enabled;
       toggle.toggleClass("is-enabled", newVal);
       toggle.setAttribute("aria-checked", String(newVal));
-      await this.toggleRule(rule, newVal);
+      void this.toggleRule(rule, newVal);
       window.setTimeout(() => this.display(), 180);
     });
     toggle.addEventListener("keydown", (ev) => {
@@ -426,7 +420,9 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
         t.deleteConfirm.replace("{name}", name),
         t.delete,
         t.cancel,
-        () => this.deleteRule(rule)
+        () => {
+          void this.deleteRule(rule);
+        }
       ).open();
     });
     if (rule.conflictWithId) {
@@ -472,7 +468,6 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
 };
 
 // src/editorExtension.ts
-var settingsVersion = 0;
 function collectCodeRanges(view) {
   const ranges = [];
   try {
@@ -566,13 +561,10 @@ function buildDecorations(view, rules) {
 function createEditorExtension(getRules) {
   class CustomSyntaxView {
     constructor(view) {
-      this.version = -1;
-      this.version = settingsVersion;
       this.decorations = buildDecorations(view, getRules());
     }
     update(update) {
-      if (update.docChanged || update.viewportChanged || update.selectionSet || this.version !== settingsVersion) {
-        this.version = settingsVersion;
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
         this.decorations = buildDecorations(update.view, getRules());
       }
     }
@@ -642,14 +634,14 @@ function applyRule(root, rule) {
       continue;
     }
     re.lastIndex = 0;
-    const fragment = document.createDocumentFragment();
+    const fragment = createFragment();
     let lastIndex = 0;
     let m;
     while ((m = re.exec(text)) !== null) {
       if (m.index > lastIndex) {
         fragment.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
       }
-      const span = root.createEl("span");
+      const span = createSpan();
       span.setCssStyles(cssRecord);
       span.textContent = m[1];
       fragment.appendChild(span);
@@ -690,7 +682,7 @@ var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
     const lang = data == null ? void 0 : data.language;
     this.settings.language = lang === "en" || lang === "zh" || lang === "system" ? lang : "system";
     const rules = data == null ? void 0 : data.rules;
-    if (Array.isArray(rules) && rules.length > 0 && typeof rules[0].css === "string") {
+    if (Array.isArray(rules)) {
       this.settings.rules = rules.map((r) => normalizeRule(r));
     } else {
       this.settings.rules = DEFAULT_SETTINGS.rules.map((r) => ({ ...r }));
