@@ -1,0 +1,202 @@
+import { escapeRegExp, type SyntaxRule } from "./settings";
+
+/**
+ * A machine-readable record of where a custom-syntax rule matched inside a
+ * note. This is the plugin's own queryable index — it does NOT patch Obsidian's
+ * metadata cache, so it survives app updates and stays reviewable. Other plugins
+ * can read it through `plugin.syntaxIndex.getForPath(path)`.
+ */
+export interface SyntaxOccurrence {
+	ruleId: string;
+	ruleName: string;
+	kind: string;
+	/** The matched opener text, e.g. "++" or ":::note". */
+	marker: string;
+	/** Fenced type, when the rule reads it (e.g. "note"). */
+	type?: string;
+	/** Raw `{ ... }` parameter string, when captured. */
+	params?: string;
+	/** 1-based line number in the source. */
+	line: number;
+	/** A short excerpt of the matched content. */
+	excerpt: string;
+}
+
+export class SyntaxIndex {
+	private map = new Map<string, SyntaxOccurrence[]>();
+
+	/** (Re)build the index entry for one file path. */
+	indexFile(path: string, content: string, rules: SyntaxRule[]): void {
+		this.map.set(path, scanContent(content, rules));
+	}
+
+	removeFile(path: string): void {
+		this.map.delete(path);
+	}
+
+	getForPath(path: string): SyntaxOccurrence[] {
+		return this.map.get(path) ?? [];
+	}
+
+	getAll(): Record<string, SyntaxOccurrence[]> {
+		return Object.fromEntries(this.map);
+	}
+
+	size(): number {
+		return this.map.size;
+	}
+}
+
+/**
+ * Scan note source for every enabled rule's matches. Line-based, so it is cheap
+ * and safe to run on a single file (we deliberately never scan the whole vault
+ * at once — see the plugin's lazy indexing).
+ */
+export function scanContent(
+	content: string,
+	rules: SyntaxRule[]
+): SyntaxOccurrence[] {
+	const out: SyntaxOccurrence[] = [];
+	const lines = content.split(/\r?\n/);
+	for (const rule of rules) {
+		if (!rule.enabled || !rule.open) continue;
+		if (rule.kind === "inline") {
+			scanInline(lines, rule, out);
+		} else if (rule.kind === "callout") {
+			scanCallout(lines, rule, out);
+		} else {
+			scanBlock(lines, rule, out);
+		}
+	}
+	return out;
+}
+
+function scanInline(
+	lines: string[],
+	rule: SyntaxRule,
+	out: SyntaxOccurrence[]
+): void {
+	const head = rule.captureParams
+		? `${escapeRegExp(rule.open)}\\s*(\\{[^}]*\\})?\\s*([^\\n]*?)`
+		: `${escapeRegExp(rule.open)}([^\\n]*?)`;
+	const re = new RegExp(head + escapeRegExp(rule.open), "g");
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		re.lastIndex = 0;
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(line)) !== null) {
+			const content = rule.captureParams ? m[2] : m[1];
+			if (!content) continue;
+			out.push({
+				ruleId: rule.id,
+				ruleName: rule.name,
+				kind: "inline",
+				marker: rule.open,
+				params: rule.captureParams ? m[1] : undefined,
+				line: i + 1,
+				excerpt: content.slice(0, 80),
+			});
+		}
+	}
+}
+
+function scanBlock(
+	lines: string[],
+	rule: SyntaxRule,
+	out: SyntaxOccurrence[]
+): void {
+	const open = rule.open;
+	const close = rule.close || open;
+	let openLine = -1;
+	let type: string | undefined;
+	let params: string | undefined;
+	for (let i = 0; i < lines.length; i++) {
+		const trimmed = lines[i].trim();
+		if (openLine === -1) {
+			if (rule.kind === "fenced" ? trimmed.startsWith(open) : trimmed === open) {
+				openLine = i;
+				const tail = lines[i].slice(open.length);
+				if (rule.captureParams) {
+					const bs = tail.indexOf("{");
+					const be = tail.indexOf("}", bs);
+					if (bs >= 0 && be > bs) {
+						params = tail.slice(bs, be + 1);
+						type = rule.readType
+							? tail.slice(0, bs).trim() || undefined
+							: undefined;
+					} else {
+						type = rule.readType ? tail.trim() : undefined;
+					}
+				} else {
+					type = rule.readType ? tail.trim() : undefined;
+				}
+			}
+		} else if (trimmed === close) {
+			out.push({
+				ruleId: rule.id,
+				ruleName: rule.name,
+				kind: rule.kind,
+				marker: rule.open,
+				type,
+				params,
+				line: openLine + 1,
+				excerpt: `${lines[openLine].trim()} … ${trimmed}`,
+			});
+			openLine = -1;
+			type = undefined;
+			params = undefined;
+		}
+	}
+}
+
+function scanCallout(
+	lines: string[],
+	rule: SyntaxRule,
+	out: SyntaxOccurrence[]
+): void {
+	const re = /^>\s*\[!\s*([^\]\s]+)\s*\]/;
+	for (let i = 0; i < lines.length; i++) {
+		const m = lines[i].match(re);
+		if (m && m[1] === rule.open) {
+			out.push({
+				ruleId: rule.id,
+				ruleName: rule.name,
+				kind: "callout",
+				marker: `> [!${rule.open}]`,
+				type: rule.open,
+				line: i + 1,
+				excerpt: lines[i].trim(),
+			});
+		}
+	}
+}
+
+/** Build the markdown body of a Dataview-readable companion file. */
+export function buildCompanion(
+	noteName: string,
+	occ: SyntaxOccurrence[]
+): string {
+	const rows = occ
+		.map(
+			(o) =>
+				`cs-rule:: ${o.ruleName}\ncs-kind:: ${o.kind}\ncs-line:: ${o.line}` +
+				(o.type ? `\ncs-type:: ${o.type}` : "")
+		)
+		.join("\n\n");
+	const body = [
+		"---",
+		"custom-syntax: true",
+		"---",
+		"",
+		`# Custom Syntax index — ${noteName}`,
+		"",
+		"> Generated by the Custom Syntax plugin. Each block below is a Dataview-readable",
+		"> inline field describing where a custom rule matched in the source note.",
+		"",
+		occ.length === 0
+			? "_No custom-syntax matches found in this note._"
+			: rows,
+		"",
+	].join("\n");
+	return body;
+}

@@ -5,10 +5,34 @@ import { createCssEditor, type CssEditorHandle } from "./cssEditor";
 export type Language = "en" | "zh" | "system";
 type ResolvedLanguage = "en" | "zh";
 
+/** The four syntax shapes a rule can render. Drives both the editor form and the renderer. */
+export type RuleKind = "inline" | "fenced" | "multiline" | "callout";
+
 export interface SyntaxRule {
 	id: string;
 	name: string;
-	delimiter: string;
+	enabled: boolean;
+	/**
+	 * Which syntax shape this rule renders:
+	 *  - `inline`    : a delimiter wraps text on the same line (`++text++`)
+	 *  - `fenced`    : Pandoc-style `:::type … :::` block
+	 *  - `multiline` : a marker alone on its own line opens, the same marker
+	 *                  alone on a later line closes (`++` … `++`)
+	 *  - `callout`   : an Obsidian callout type (`> [!type]`), styled by us
+	 */
+	kind: RuleKind;
+	/**
+	 * The opening marker. For `inline` this is the delimiter (open === close);
+	 * for `fenced`/`multiline` it is the line marker (e.g. ":::", "++");
+	 * for `callout` it is the Obsidian callout type name (e.g. "mynote").
+	 */
+	open: string;
+	/** Closing marker. Equals `open` for inline/fenced; the end marker for multiline; empty for callout. */
+	close: string;
+	/** Fenced/callout: read the type from the opening line (e.g. `:::note`, `>[!note]`). */
+	readType: boolean;
+	/** Capture `{ .class #id k=v }` parameters after the match and apply them. */
+	captureParams: boolean;
 	/**
 	 * Declarations only — the text that goes *inside* a rule's curly braces.
 	 * May be left empty, in which case the rule's classes (see `className`)
@@ -20,7 +44,6 @@ export interface SyntaxRule {
 	 * shared between rules and overridden from a CSS snippet or theme.
 	 */
 	className: string;
-	enabled: boolean;
 	conflictWithId?: string | null;
 }
 
@@ -37,12 +60,40 @@ export const DEFAULT_SETTINGS: CustomSyntaxSettings = {
 		{
 			id: "rounded-box",
 			name: "圆角边框",
-			delimiter: "++",
+			enabled: true,
+			kind: "inline",
+			open: "++",
+			close: "++",
+			readType: false,
+			captureParams: false,
 			css: `border: 1px solid var(--interactive-accent);
 border-radius: 6px;
 padding: 1px 5px;`,
 			className: "",
+		},
+		{
+			id: "fenced-note",
+			name: "围栏块 (:::note)",
 			enabled: true,
+			kind: "fenced",
+			open: ":::",
+			close: ":::",
+			readType: true,
+			captureParams: false,
+			css: "",
+			className: "",
+		},
+		{
+			id: "multiline-plus",
+			name: "多行块 (++)",
+			enabled: true,
+			kind: "multiline",
+			open: "++",
+			close: "++",
+			readType: false,
+			captureParams: false,
+			css: "",
+			className: "",
 		},
 	],
 	showRibbon: true,
@@ -53,13 +104,28 @@ export function newRuleId(): string {
 }
 
 export function normalizeRule(r: Partial<SyntaxRule>): SyntaxRule {
+	const kind: RuleKind =
+		r.kind === "fenced" || r.kind === "multiline" || r.kind === "callout"
+			? r.kind
+			: "inline";
+	// Migrate the legacy single `delimiter` field into the unified open/close.
+	const legacy = r as Partial<SyntaxRule> & { delimiter?: string };
+	const open = r.open ?? legacy.delimiter ?? "";
+	const close =
+		r.close ?? (kind === "inline" ? open : kind === "fenced" ? open : "");
+	// Defensive: if close is empty string for fenced/multiline, fall back to open.
+	const safeClose = close || (kind !== "inline" && kind !== "callout" ? open : close);
 	return {
 		id: typeof r.id === "string" && r.id ? r.id : newRuleId(),
 		name: typeof r.name === "string" ? r.name : "",
-		delimiter: r.delimiter ?? "",
+		enabled: r.enabled ?? true,
+		kind,
+		open,
+		close: safeClose,
+		readType: r.readType ?? (kind === "callout" ? true : kind === "fenced"),
+		captureParams: r.captureParams ?? false,
 		css: r.css ?? "",
 		className: sanitizeClassName(r.className ?? ""),
-		enabled: r.enabled ?? true,
 		conflictWithId: r.conflictWithId ?? null,
 	};
 }
@@ -113,8 +179,10 @@ export function exportRulesAsCss(rules: SyntaxRule[]): string {
 		const extra = sanitizeClassName(rule.className);
 		const selector = extra
 			? `.${extra.split(" ").join(".")}`
-			: `.${ruleContentClass(rule.id)}`;
-		const label = rule.name || rule.delimiter || rule.id;
+			: rule.kind === "inline"
+				? `.${ruleContentClass(rule.id)}`
+				: `.cs-block-${rule.id}`;
+		const label = rule.name || rule.open || rule.id;
 		const declarations = css
 			.split(";")
 			.map((decl) => decl.trim())
@@ -122,7 +190,7 @@ export function exportRulesAsCss(rules: SyntaxRule[]): string {
 			.map((decl) => `\t${decl};`)
 			.join("\n");
 		blocks.push(
-			`/* ${label} — ${rule.delimiter} */\n${selector} {\n${declarations}\n}`
+			`/* ${label} — ${rule.open} */\n${selector} {\n${declarations}\n}`
 		);
 	}
 	if (blocks.length === 0) {
@@ -196,7 +264,7 @@ export function findCustomConflict(
 		if (excludeId && r.id === excludeId) {
 			continue;
 		}
-		if (delimitersConflict(delim, r.delimiter)) {
+		if (delimitersConflict(delim, r.open)) {
 			return r;
 		}
 	}
@@ -260,6 +328,24 @@ interface UIStrings {
 	close: string;
 	languageSwitch: string;
 	openSettings: string;
+	category: string;
+	enabledLabel: string;
+	catInline: string;
+	catFenced: string;
+	catMultiline: string;
+	catCallout: string;
+	openMarker: string;
+	openMarkerDesc: string;
+	closeMarker: string;
+	closeMarkerDesc: string;
+	typeName: string;
+	typeNameDesc: string;
+	readType: string;
+	readTypeDesc: string;
+	captureParams: string;
+	captureParamsDesc: string;
+	markerPlaceholder: string;
+	typePlaceholder: string;
 }
 
 const STRINGS: Record<ResolvedLanguage, UIStrings> = {
@@ -303,7 +389,7 @@ padding: 1px 5px;`,
 		cancel: "取消",
 		create: "创建",
 		save: "保存",
-		delimiterRequired: "分隔符不能为空",
+		delimiterRequired: "标记不能为空",
 		conflictBuiltin: "与 Markdown 内置语法「{name}」冲突",
 		conflictCustomCreate: "与自定义语法「{name}」冲突，再次确认将创建并禁用",
 		conflictCustomSave: "与自定义语法「{name}」冲突，再次确认将保存并禁用",
@@ -325,6 +411,24 @@ padding: 1px 5px;`,
 		close: "关闭",
 		languageSwitch: "切换语言",
 		openSettings: "设置",
+		category: "语法类别",
+		enabledLabel: "启用",
+		catInline: "行内配对",
+		catFenced: "围栏块",
+		catMultiline: "多行块",
+		catCallout: "自定义 Callout",
+		openMarker: "起始标记",
+		openMarkerDesc: "块起始行的标记，例如 ::: 或 ++",
+		closeMarker: "结束标记",
+		closeMarkerDesc: "块结束行的标记，例如 ::: 或 ++",
+		typeName: "类型名",
+		typeNameDesc: "Obsidian callout 类型名，例如 mynote；在笔记里用 > [!mynote] 触发",
+		readType: "读取类型",
+		readTypeDesc: "从起始行读取类型（如 :::note 的类型为 note），作为类名钩子",
+		captureParams: "捕获参数",
+		captureParamsDesc: "在标记后解析 { .class #id k=v } 并动态套用",
+		markerPlaceholder: ":::",
+		typePlaceholder: "mynote",
 	},
 	en: {
 		pluginName: "Custom Syntax",
@@ -367,7 +471,7 @@ padding: 1px 5px;`,
 		cancel: "Cancel",
 		create: "Create",
 		save: "Save",
-		delimiterRequired: "Delimiter is required",
+		delimiterRequired: "Marker is required",
 		conflictBuiltin: 'Conflicts with built-in Markdown syntax "{name}"',
 		conflictCustomCreate:
 			'Conflicts with custom syntax "{name}" — confirm again to create (disabled)',
@@ -393,6 +497,24 @@ padding: 1px 5px;`,
 		close: "Close",
 		languageSwitch: "Switch language",
 		openSettings: "Settings",
+		category: "Syntax category",
+		enabledLabel: "Enabled",
+		catInline: "Inline pair",
+		catFenced: "Fenced block",
+		catMultiline: "Multiline block",
+		catCallout: "Custom callout",
+		openMarker: "Opening marker",
+		openMarkerDesc: "The marker on the block's opening line, e.g. ::: or ++",
+		closeMarker: "Closing marker",
+		closeMarkerDesc: "The marker on the block's closing line, e.g. ::: or ++",
+		typeName: "Type name",
+		typeNameDesc: "The Obsidian callout type name, e.g. mynote; trigger with > [!mynote]",
+		readType: "Read type",
+		readTypeDesc: "Read the type from the opening line (e.g. :::note -> note) as a class hook",
+		captureParams: "Capture parameters",
+		captureParamsDesc: "Parse { .class #id k=v } after the match and apply it dynamically",
+		markerPlaceholder: ":::",
+		typePlaceholder: "mynote",
 	},
 };
 
@@ -458,7 +580,11 @@ export class ConfirmModal extends Modal {
 /** Result of {@link RuleForm.validate}; `ok` is false when there is an error. */
 export interface RuleFormValue {
 	name: string;
-	delimiter: string;
+	kind: RuleKind;
+	open: string;
+	close: string;
+	readType: boolean;
+	captureParams: boolean;
 	css: string;
 	className: string;
 	enabled: boolean;
@@ -474,12 +600,20 @@ export class RuleForm {
 	private rule: SyntaxRule | null;
 	private onSubmit: () => void;
 
+	private kind: RuleKind = "inline";
 	private nameInput!: HTMLInputElement;
-	private delimInput!: HTMLInputElement;
 	private classInput!: HTMLInputElement;
 	private cssEditor!: CssEditorHandle;
+	private conditionalEl!: HTMLElement;
 	private errorEl!: HTMLElement;
 	private pendingCustomConflict: SyntaxRule | null = null;
+
+	// Conditional field state (rebuilt when the category changes).
+	private openInput?: HTMLInputElement;
+	private closeInput?: HTMLInputElement;
+	private enabled = true;
+	private readType = false;
+	private captureParams = false;
 
 	constructor(
 		container: HTMLElement,
@@ -495,6 +629,40 @@ export class RuleForm {
 
 	private build(container: HTMLElement): void {
 		const t = stringsFor(this.plugin.settings.language);
+		this.kind = this.rule?.kind ?? "inline";
+		this.enabled = this.rule?.enabled ?? true;
+		this.readType =
+			this.rule?.readType ??
+			(this.kind === "fenced" || this.kind === "callout");
+		this.captureParams = this.rule?.captureParams ?? false;
+
+		// Category selector — a segmented control at the top of the form.
+		const cat = new Setting(container).setName(t.category);
+		const seg = cat.controlEl.createDiv({ cls: "custom-syntax-cat-seg" });
+		const kinds: RuleKind[] = ["inline", "fenced", "multiline", "callout"];
+		const labelOf: Record<RuleKind, string> = {
+			inline: t.catInline,
+			fenced: t.catFenced,
+			multiline: t.catMultiline,
+			callout: t.catCallout,
+		};
+		const buttons = {} as Record<RuleKind, HTMLElement>;
+		for (const k of kinds) {
+			const b = seg.createEl("button", {
+				text: labelOf[k],
+				cls: "custom-syntax-cat-btn",
+			});
+			if (k === this.kind) b.addClass("is-active");
+			b.addEventListener("click", () => {
+				if (this.kind === k) return;
+				this.kind = k;
+				for (const kk of kinds) {
+					buttons[kk].toggleClass("is-active", kk === k);
+				}
+				this.renderConditional();
+			});
+			buttons[k] = b;
+		}
 
 		new Setting(container).setName(t.ruleName).addText((text) => {
 			this.nameInput = text.inputEl;
@@ -504,15 +672,19 @@ export class RuleForm {
 		});
 
 		new Setting(container)
-			.setName(t.delimiter)
-			.addText((text) => {
-				this.delimInput = text.inputEl;
-				text.setValue(this.rule?.delimiter ?? "++").setPlaceholder("++");
-				this.delimInput.addEventListener("input", () => {
-					this.pendingCustomConflict = null;
-					this.clearError();
+			.setName(t.enabledLabel)
+			.addToggle((tg) => {
+				tg.setValue(this.enabled);
+				tg.onChange((v) => {
+					this.enabled = v;
 				});
 			});
+
+		// Conditional section — rebuilt whenever the category changes.
+		this.conditionalEl = container.createDiv({
+			cls: "custom-syntax-conditional",
+		});
+		this.renderConditional();
 
 		new Setting(container)
 			.setName(t.className)
@@ -548,6 +720,87 @@ export class RuleForm {
 		this.errorEl = container.createDiv({ cls: "custom-syntax-error" });
 	}
 
+	/** (Re)build the category-dependent fields without touching common ones. */
+	private renderConditional(): void {
+		const t = stringsFor(this.plugin.settings.language);
+		this.conditionalEl.empty();
+		this.openInput = undefined;
+		this.closeInput = undefined;
+
+		if (this.kind === "inline") {
+			new Setting(this.conditionalEl)
+				.setName(t.delimiter)
+				.addText((text) => {
+					this.openInput = text.inputEl;
+					text
+						.setValue(this.rule?.open ?? "++")
+						.setPlaceholder("++");
+					this.openInput.addEventListener("input", () => {
+						this.pendingCustomConflict = null;
+						this.clearError();
+					});
+				});
+		} else if (this.kind === "fenced") {
+			new Setting(this.conditionalEl)
+				.setName(t.openMarker)
+								.addText((text) => {
+					this.openInput = text.inputEl;
+					text
+						.setValue(this.rule?.open ?? ":::")
+						.setPlaceholder(t.markerPlaceholder);
+				});
+			new Setting(this.conditionalEl)
+				.setName(t.readType)
+								.addToggle((tg) => {
+					tg.setValue(this.readType);
+					tg.onChange((v) => {
+						this.readType = v;
+					});
+				});
+			this.addCaptureToggle();
+		} else if (this.kind === "multiline") {
+			new Setting(this.conditionalEl)
+				.setName(t.openMarker)
+								.addText((text) => {
+					this.openInput = text.inputEl;
+					text
+						.setValue(this.rule?.open ?? "++")
+						.setPlaceholder(t.markerPlaceholder);
+				});
+			new Setting(this.conditionalEl)
+				.setName(t.closeMarker)
+								.addText((text) => {
+					this.closeInput = text.inputEl;
+					text
+						.setValue(this.rule?.close ?? "++")
+						.setPlaceholder(t.markerPlaceholder);
+				});
+			this.addCaptureToggle();
+		} else {
+			// callout
+			new Setting(this.conditionalEl)
+				.setName(t.typeName)
+								.addText((text) => {
+					this.openInput = text.inputEl;
+					text
+						.setValue(this.rule?.open ?? "")
+						.setPlaceholder(t.typePlaceholder);
+				});
+		}
+	}
+
+	private addCaptureToggle(): void {
+		const t = stringsFor(this.plugin.settings.language);
+		new Setting(this.conditionalEl)
+			.setName(t.captureParams)
+						.addToggle((tg) => {
+				tg.setValue(this.captureParams);
+				tg.onChange((v) => {
+					this.captureParams = v;
+				});
+			});
+	}
+
 	private clearError(): void {
 		this.errorEl.empty();
 		this.errorEl.removeClass("is-visible");
@@ -567,61 +820,106 @@ export class RuleForm {
 		const t = stringsFor(this.plugin.settings.language);
 		const lang = resolveLanguage(this.plugin.settings.language);
 		const name = this.nameInput.value.trim();
-		const delimiter = this.delimInput.value;
 		const css = this.cssEditor.getValue();
 		const className = sanitizeClassName(this.classInput.value);
+		const open = (this.openInput?.value ?? "").trim();
+		const close = (this.closeInput?.value ?? "").trim();
 
-		if (!delimiter) {
-			this.showError(t.delimiterRequired);
-			return { ok: false };
-		}
-
-		const builtin = findBuiltinConflict(delimiter);
-		if (builtin) {
-			const nm = lang === "zh" ? builtin.zh : builtin.en;
-			this.showError(t.conflictBuiltin.replace("{name}", nm));
-			this.pendingCustomConflict = null;
-			return { ok: false };
-		}
-
-		const custom = findCustomConflict(
-			delimiter,
-			this.plugin.settings.rules,
-			this.rule?.id
-		);
-		if (custom) {
-			const nm = custom.name || t.untitled;
-			if (
-				this.pendingCustomConflict &&
-				this.pendingCustomConflict.id === custom.id
-			) {
-				// Second confirmation: create/save but force-disabled.
-				return {
-					ok: true,
-					value: {
-						name: name || t.untitled,
-						delimiter,
-						css,
-						className,
-						enabled: false,
-					},
-				};
+		if (this.kind === "inline") {
+			if (!open) {
+				this.showError(t.delimiterRequired);
+				return { ok: false };
 			}
-			this.pendingCustomConflict = custom;
-			const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
-			this.showError(msg.replace("{name}", nm));
-			return { ok: false };
+			const builtin = findBuiltinConflict(open);
+			if (builtin) {
+				const nm = lang === "zh" ? builtin.zh : builtin.en;
+				this.showError(t.conflictBuiltin.replace("{name}", nm));
+				this.pendingCustomConflict = null;
+				return { ok: false };
+			}
+			const custom = findCustomConflict(
+				open,
+				this.plugin.settings.rules,
+				this.rule?.id
+			);
+			if (custom) {
+				const nm = custom.name || t.untitled;
+				if (
+					this.pendingCustomConflict &&
+					this.pendingCustomConflict.id === custom.id
+				) {
+					return {
+						ok: true,
+						value: this.buildValue(name, "inline", open, open, false, false, css, className),
+					};
+				}
+				this.pendingCustomConflict = custom;
+				const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
+				this.showError(msg.replace("{name}", nm));
+				return { ok: false };
+			}
+		} else if (this.kind === "fenced") {
+			if (!open) {
+				this.showError(t.delimiterRequired);
+				return { ok: false };
+			}
+		} else if (this.kind === "multiline") {
+			if (!open || !close) {
+				this.showError(t.delimiterRequired);
+				return { ok: false };
+			}
+		} else {
+			// callout
+			if (!open) {
+				this.showError(t.delimiterRequired);
+				return { ok: false };
+			}
 		}
 
+		const isBlock = this.kind === "fenced" || this.kind === "multiline";
 		return {
 			ok: true,
-			value: {
-				name: name || t.untitled,
-				delimiter,
+			value: this.buildValue(
+				name,
+				this.kind,
+				open,
+				this.kind === "inline"
+					? open
+					: this.kind === "multiline"
+						? close
+						: open,
+				this.kind === "callout"
+					? true
+					: this.kind === "fenced"
+						? this.readType
+						: false,
+				isBlock ? this.captureParams : false,
 				css,
-				className,
-				enabled: this.rule ? this.rule.enabled : true,
-			},
+				className
+			),
+		};
+	}
+
+	private buildValue(
+		name: string,
+		kind: RuleKind,
+		open: string,
+		close: string,
+		readType: boolean,
+		captureParams: boolean,
+		css: string,
+		className: string
+	): RuleFormValue {
+		return {
+			name: name || stringsFor(this.plugin.settings.language).untitled,
+			kind,
+			open,
+			close,
+			readType,
+			captureParams,
+			css,
+			className,
+			enabled: this.enabled,
 		};
 	}
 
@@ -704,7 +1002,7 @@ export async function toggleRuleEnabled(
 			if (
 				other !== rule &&
 				other.enabled &&
-				delimitersConflict(rule.delimiter, other.delimiter)
+				delimitersConflict(rule.open, other.open)
 			) {
 				other.enabled = false;
 				other.conflictWithId = rule.id;
@@ -745,11 +1043,25 @@ export function renderRuleCard(
 
 	const row = card.createDiv({ cls: "custom-syntax-rule-row" });
 
+	const badgeLabel: Record<RuleKind, string> = {
+		inline: t.catInline,
+		fenced: t.catFenced,
+		multiline: t.catMultiline,
+		callout: t.catCallout,
+	};
+	const badge = row.createDiv({
+		cls: `custom-syntax-rule-badge is-${rule.kind}`,
+		text: badgeLabel[rule.kind] ?? t.catInline,
+	});
+
 	const nameEl = row.createDiv({
 		cls: "custom-syntax-rule-name",
 		text: rule.name || t.untitled,
 	});
-	nameEl.title = rule.delimiter;
+	nameEl.title =
+		rule.kind === "inline"
+			? rule.open
+			: `${badgeLabel[rule.kind]} · ${rule.open}`;
 
 	const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
 
@@ -969,65 +1281,155 @@ export class DocumentationModal extends Modal {
 			lang === "zh"
 				? [
 						{
+							h: "概述",
+							p: [
+								"自定义语法让你定义自己的 Markdown 标记，并用自有 CSS 渲染。它只在编辑器与阅读视图做视觉装饰，永不改写你的源文件。",
+								"编辑器（实时预览/源码模式）通过 CodeMirror 装饰实现，阅读视图通过 Markdown 后处理器实现——两条都是官方稳定扩展点。",
+							],
+						},
+						{
 							h: "添加规则",
 							p: [
-								"点击右侧边栏规则管理器里的「添加规则」，或直接点设置中的「打开面板」。",
-								"填写规则名与分隔符（例如 ++），然后在「样式声明」里只写 CSS 花括号里的部分：",
+								"在右侧边栏规则管理器点「添加规则」，或在设置里点「打开面板」。",
+								"先选「语法类别」，再填对应标记，然后在「样式声明」里只写 CSS 花括号里的内容：",
 							],
 							code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;",
 						},
 						{
-							h: "立即生效",
-							p: ["在笔记里输入 ++文字++ 即可看到效果。"],
+							h: "四类语法",
+							p: [
+								"行内配对：用成对分隔符包裹同一行文字，例如 ++文字++。",
+								"围栏块：Pandoc 式 :::类型 … ::: 容器块，独占成行。",
+								"多行块：起始标记独占一行，结束标记也独占一行，例如用 ++ 包住多行内容。",
+								"自定义 Callout：用 > [!类型] 触发，盒子由 Obsidian 原生渲染，我们仅加样式。",
+							],
+							code: "++行内文字++\n\n:::note\n这是围栏块\n:::\n\n++\n这是多行块\n跨两行\n++\n\n> [!mynote]\n这是自定义 callout",
 						},
 						{
-							h: "类样式（可选）",
+							h: "读取类型",
 							p: [
-								"在「类名」里填一个或多个 CSS 类名（空格分隔）。当「样式声明」留空时，样式完全由你自己的 CSS 片段中为这个类名写的规则决定，从而能被主题复用与覆盖。",
+								"围栏块与 Callout 可开启「读取类型」：起始行的类型（如 note / mynote）会作为类名钩子，让 CSS 片段按类型精确定制。",
+								"例如 :::note 会获得 .cs-fence-note 类，> [!mynote] 对应原生 data-callout=\"mynote\"。",
+							],
+						},
+						{
+							h: "捕获参数",
+							p: [
+								"开启「捕获参数」后，可在标记后写 { .类名 #id 键=值 }，动态套用样式。",
+								".类名 加 class，#id 设元素 id，键=值 转为内联 CSS（如 color=red）。",
+							],
+							code: ":::note { .box #main color=red }\n带参数的围栏块\n:::",
+						},
+						{
+							h: "类样式复用（可选）",
+							p: [
+								"在「类名」里填一个或多个 CSS 类名（空格分隔）。当「样式声明」留空时，样式完全由你自己的 CSS 片段中为该类写的规则决定，从而能被主题复用与覆盖。",
+								"每条规则还自带稳定类名 .cs-block-<id>（块级）或 .custom-syntax-<id>-content（行内），便于精确定位。",
 							],
 						},
 						{
 							h: "导出 CSS 片段",
 							p: [
-								"在设置「导出」组中点击「导出 CSS 片段」，把现有规则的样式导出为 .css 文件，放入你的片段文件夹即可长期复用。",
+								"在设置「导出」组点「导出 CSS 片段」，把现有规则样式导出为 .css 文件，放入片段文件夹即可长期复用。",
 							],
 						},
 						{
-							h: "阅读模式",
+							h: "阅读模式行为",
 							p: [
-								"分隔符内为空（例如 ++++）时，会当作普通文本，不做任何渲染——这和原生 == 处理 ==== 的方式一致。",
+								"分隔符内为空（例如 ++++）时，当作普通文本，不做任何渲染——这和原生 == 处理 ==== 的方式一致。",
+								"代码块、行内代码、公式与链接内部不会渲染，保护原有语义。",
+							],
+						},
+						{
+							h: "语义索引与伴生文件（实验性）",
+							p: [
+								"插件在「打开/编辑」笔记时懒加载建立自有索引，记录每条规则在何处匹配，可通过插件实例的 syntaxIndex API 被其他插件读取——不修改 Obsidian 元数据缓存。",
+								"命令面板中的「Generate syntax metadata companion」会为当前笔记生成 <笔记名>.cs-meta.md 伴生文件，内含 Dataview 可读的内联字段，使自定义标记可被 Dataview 查询。该文件为额外生成，可按需删除。",
+							],
+						},
+						{
+							h: "已知限制",
+							p: [
+								"本插件只做视觉装饰，不新增真正的 Markdown AST 节点；复制到 Typora、Pandoc 导出时分隔符原样保留。",
+								"嵌套块级语法为有限支持；代码块/公式内部不渲染。",
+								"「可视化编辑」按钮为占位，尚未开放。",
 							],
 						},
 				  ]
 				: [
 						{
+							h: "Overview",
+							p: [
+								"Custom Syntax lets you define your own Markdown markers and style them with your own CSS. It only decorates the editor and reading view — it never rewrites your source.",
+								"Live Preview / Source mode uses CodeMirror decorations; reading view uses a Markdown post-processor. Both are official, stable extension points.",
+							],
+						},
+						{
 							h: "Add a rule",
 							p: [
-								'Click "Add rule" in the right-sidebar rule manager, or click "Open panel" in the settings.',
-								"Give the rule a name and a delimiter (e.g. ++), then write only what goes inside the CSS curly braces:",
+								'Click "Add rule" in the right-sidebar rule manager, or "Open panel" in the settings.',
+								"Pick a syntax category, fill in the marker, then write only what goes inside the CSS curly braces:",
 							],
 							code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;",
 						},
 						{
-							h: "Takes effect immediately",
-							p: ["Type ++text++ in a note to see it styled."],
+							h: "The four syntax shapes",
+							p: [
+								"Inline pair: a delimiter wrapping text on the same line, e.g. ++text++.",
+								"Fenced block: a Pandoc-style :::type … ::: container, on its own lines.",
+								"Multiline block: a marker alone on its line opens, the same marker alone on a later line closes, e.g. ++ around several lines.",
+								"Custom callout: > [!type] triggers a box rendered natively by Obsidian; we only add styling.",
+							],
+							code: "++inline text++\n\n:::note\nThis is a fenced block\n:::\n\n++\nThis is a multiline block\nspanning two lines\n++\n\n> [!mynote]\nThis is a custom callout",
+						},
+						{
+							h: "Read type",
+							p: [
+								"Fenced blocks and callouts can read the type from the opening line (e.g. note / mynote) and expose it as a class hook, so a CSS snippet can target a type precisely.",
+								"For example :::note gets the .cs-fence-note class; > [!mynote] maps to the native data-callout=\"mynote\".",
+							],
+						},
+						{
+							h: "Capture parameters",
+							p: [
+								'With "Capture parameters" on, write { .class #id key=value } after the marker to apply styles dynamically.',
+								".class adds a class, #id sets the element id, key=value becomes inline CSS (e.g. color=red).",
+							],
+							code: ":::note { .box #main color=red }\nA fenced block with parameters\n:::",
 						},
 						{
 							h: "Class-based styling (optional)",
 							p: [
-								'Fill in one or more CSS class names (space-separated) under "Class name". When the declarations are left empty, styling comes entirely from the rule you write for that class in your own CSS snippet, so it can be reused and overridden by themes.',
+								'Fill in one or more CSS class names (space-separated) under "Class name". When declarations are left empty, styling comes entirely from your own CSS snippet for that class, so it can be reused and overridden by themes.',
+								"Every rule also carries a stable class — .cs-block-<id> (blocks) or .custom-syntax-<id>-content (inline) — for precise targeting.",
 							],
 						},
 						{
 							h: "Export as CSS snippet",
 							p: [
-								'Under the settings "Export" group, click "Export CSS snippet" to export your rules\' styles as a .css file you can drop into your snippets folder for reuse.',
+								'Under the settings "Export" group, click "Export CSS snippet" to export your rules\' styles as a .css file you can drop into your snippets folder.',
 							],
 						},
 						{
 							h: "Reading view",
 							p: [
-								"A delimiter with nothing inside (e.g. ++++) is left as plain text and not rendered — just like how native == leaves ==== alone.",
+								"A delimiter with nothing inside (e.g. ++++) is left as plain text and not rendered — like how native == leaves ==== alone.",
+								"Code blocks, inline code, math and links are never decorated, preserving their meaning.",
+							],
+						},
+						{
+							h: "Semantic index & companion (experimental)",
+							p: [
+								"As you open or edit a note, the plugin lazily builds its own index of where each rule matched. Other plugins can read it through the plugin instance's syntaxIndex API — the Obsidian metadata cache is never patched.",
+								'The command palette command "Generate syntax metadata companion" writes a <note>.cs-meta.md companion next to the current note, with Dataview-readable inline fields so custom markers become queryable. The companion is an extra file you can delete at any time.',
+							],
+						},
+						{
+							h: "Known limitations",
+							p: [
+								"This plugin only decorates — it does not add real Markdown AST nodes, and when you copy to Typora or export via Pandoc the delimiters are kept as-is.",
+								"Nested block syntax has limited support; code blocks and math are never rendered.",
+								'The "Visual editor" button is a placeholder and is not yet available.',
 							],
 						},
 				  ];

@@ -1,9 +1,9 @@
 {
 	"id": "custom-syntax",
 	"name": "Custom Syntax",
-	"version": "1.2.0",
+	"version": "1.3.0",
 	"minAppVersion": "1.0.0",
-	"description": "Define custom inline syntax delimiters and style them with your own CSS, with native real-time preview.",
+	"description": "Define custom inline and block syntax (fenced, multiline, callouts) and style them with your own CSS, with native real-time preview.",
 	"author": "BAIYUMIAN",
 	"authorUrl": "https://github.com/BAIYUMIAN",
 	"isDesktopOnly": false

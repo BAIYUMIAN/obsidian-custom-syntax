@@ -71,7 +71,7 @@ function buildDecorations(
 	const sel = view.state.selection.main;
 
 	for (const rule of rules) {
-		if (!rule.enabled || !rule.delimiter) {
+		if (!rule.enabled || rule.kind !== "inline" || !rule.open) {
 			continue;
 		}
 
@@ -83,7 +83,7 @@ function buildDecorations(
 		}
 
 		const contentCls = contentClasses(rule);
-		const delim = rule.delimiter;
+		const delim = rule.open;
 		const re = new RegExp(
 			`${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
 			"g"
@@ -146,6 +146,44 @@ function buildDecorations(
 						Decoration.replace({}).range(contentEnd, fullEnd)
 					);
 				}
+			}
+		}
+	}
+
+	// Block-level marker lines (fenced / multiline): decorate the marker line
+	// so the user can see it is recognised. These are pure line decorations —
+	// they never touch the CodeMirror parser, so the editor stays stable even
+	// though the visual transformation itself happens in reading view.
+	for (const rule of rules) {
+		if (!rule.enabled) continue;
+		if (rule.kind !== "fenced" && rule.kind !== "multiline") continue;
+		const open = rule.open;
+		const close = rule.close || open;
+		if (!open) continue;
+		const markerCls = `cs-block-marker cs-block-marker-${rule.id}`;
+		for (const { from, to } of scanRanges) {
+			const text = view.state.sliceDoc(from, to);
+			let lineStart = 0;
+			let idx = 0;
+			while (idx <= text.length) {
+				const nl = text.indexOf("\n", idx);
+				const lineEnd = nl === -1 ? text.length : nl;
+				const trimmed = text.slice(lineStart, lineEnd).trim();
+				const isMarker =
+					rule.kind === "fenced"
+						? trimmed.startsWith(open)
+						: trimmed === open || trimmed === close;
+				if (
+					isMarker &&
+					!isInCode(from + lineStart, from + lineEnd, codeRanges)
+				) {
+					decos.push(
+						Decoration.line({ class: markerCls }).range(from + lineStart)
+					);
+				}
+				if (nl === -1) break;
+				idx = nl + 1;
+				lineStart = idx;
 			}
 		}
 	}

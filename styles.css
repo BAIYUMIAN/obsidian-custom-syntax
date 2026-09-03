@@ -7,6 +7,13 @@
 	opacity: 0.35;
 }
 
+/* Block-level marker lines (fenced / multiline) get a subtle accent in Live
+   Preview so the user can see they are recognised. Pure decoration — the
+   editor parser is never touched. */
+.cm-line.cs-block-marker {
+	box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+
 /* Fixed top navigation bar in the settings tab. */
 .custom-syntax-nav {
 	position: sticky;
@@ -517,4 +524,121 @@
 	border-color: var(--interactive-accent);
 	background-color: var(--interactive-accent);
 	box-shadow: inset 0 0 0 3px var(--background-primary);
+}
+
+/* ── Block-level custom syntax (reading view) ── */
+.cs-block {
+	margin: 1em 0;
+	padding: 0.8em 1em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-secondary);
+}
+
+.cs-block:first-child {
+	margin-top: 0;
+}
+
+.cs-block:last-child {
+	margin-bottom: 0;
+}
+
+/* Don't let the first/last child inside a block add doubled outer spacing. */
+.cs-block > :first-child {
+	margin-top: 0;
+}
+
+.cs-block > :last-child {
+	margin-bottom: 0;
+}
+
+/* Fenced type variants — `:::note` becomes `.cs-fence-note`, `:::info`
+   becomes `.cs-fence-info`, and so on. These are sensible built-in defaults
+   (a semantic-coloured left accent bar). Override them from a CSS snippet to
+   taste; they only touch this plugin's blocks and never leak globally.
+   NOTE: a rule's own 样式声明 (inline style) takes priority, so to let these
+   type colours show, leave `border-left` out of the rule's declaration (or
+   use `!important` in your snippet). */
+.cs-fence-note {
+	border-left: 4px solid var(--interactive-accent);
+}
+
+.cs-fence-info {
+	border-left: 4px solid var(--text-link);
+}
+
+.cs-fence-tip {
+	border-left: 4px solid var(--color-green);
+}
+
+.cs-fence-success {
+	border-left: 4px solid var(--color-green);
+}
+
+.cs-fence-warning {
+	border-left: 4px solid var(--color-orange);
+}
+
+.cs-fence-danger {
+	border-left: 4px solid var(--color-red);
+}
+
+.cs-fence-example {
+	border-left: 4px solid var(--color-purple);
+}
+
+.cs-fence-quote {
+	border-left: 4px solid var(--text-muted);
+}
+
+/* Hook for custom-callout rules: applied to the native Obsidian callout box. */
+.cs-callout {
+	/* user CSS / snippets extend this */
+}
+
+/* ── Rule editor: category selector (segmented control) ── */
+.custom-syntax-cat-seg {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.custom-syntax-cat-btn {
+	flex: 1 1 auto;
+	min-width: 64px;
+	padding: 6px 8px;
+	font-size: var(--font-ui-smaller);
+	line-height: 1.2;
+	color: var(--text-muted);
+	background-color: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s, 4px);
+	cursor: pointer;
+}
+
+.custom-syntax-cat-btn:hover {
+	color: var(--text-normal);
+}
+
+.custom-syntax-cat-btn.is-active {
+	color: var(--text-on-accent);
+	background-color: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+}
+
+/* ── Rule card: category badge ── */
+.custom-syntax-rule-badge {
+	flex-shrink: 0;
+	font-size: var(--font-ui-smaller);
+	padding: 1px 6px;
+	border-radius: var(--radius-s, 4px);
+	background-color: var(--background-modifier-hover);
+	color: var(--text-muted);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.custom-syntax-rule-badge.is-fenced,
+.custom-syntax-rule-badge.is-multiline,
+.custom-syntax-rule-badge.is-callout {
+	color: var(--text-accent);
 }

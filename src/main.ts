@@ -1,7 +1,8 @@
 import { Extension } from "@codemirror/state";
-import { MarkdownView, Plugin } from "obsidian";
+import { MarkdownView, Notice, Plugin, TAbstractFile, TFile } from "obsidian";
 import { createEditorExtension } from "./editorExtension";
 import { applyRule } from "./postProcessor";
+import { buildCompanion, scanContent, SyntaxIndex } from "./syntaxIndex";
 import {
 	CustomSyntaxSettings,
 	CustomSyntaxSettingTab,
@@ -16,6 +17,9 @@ export default class CustomSyntaxPlugin extends Plugin {
 	private editorExtension: Extension[] = [];
 	private ribbonEl: HTMLElement | null = null;
 	private settingTab: CustomSyntaxSettingTab | null = null;
+	/** Own queryable index of where custom rules matched (no metadata-cache patch). */
+	syntaxIndex = new SyntaxIndex();
+	private indexTimers = new Map<string, number>();
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -43,6 +47,73 @@ export default class CustomSyntaxPlugin extends Plugin {
 				applyRule(el, rule);
 			}
 		});
+
+		// Lazy, per-file indexing for the machine-readable index. We never scan
+		// the whole vault up front — only files the user opens or edits.
+		this.registerEvent(
+			this.app.vault.on("modify", (f) => this.scheduleIndex(f))
+		);
+		this.registerEvent(
+			this.app.vault.on("create", (f) => this.scheduleIndex(f))
+		);
+		this.registerEvent(
+			this.app.vault.on("delete", (f) => {
+				if (f instanceof TFile) this.syntaxIndex.removeFile(f.path);
+			})
+		);
+
+		this.addCommand({
+			id: "write-companion",
+			name: "Generate syntax metadata companion",
+			callback: () => void this.writeCompanion(),
+		});
+	}
+
+	/** Debounced re-index of a single markdown file (no whole-vault scan). */
+	private scheduleIndex(file: TAbstractFile): void {
+		if (!(file instanceof TFile) || file.extension !== "md") return;
+		const existing = this.indexTimers.get(file.path);
+		if (existing) window.clearTimeout(existing);
+		this.indexTimers.set(
+			file.path,
+			window.setTimeout(() => {
+				this.indexTimers.delete(file.path);
+				void this.app.vault.read(file).then((content) => {
+					this.syntaxIndex.indexFile(
+						file.path,
+						content,
+						this.settings.rules
+					);
+				});
+			}, 300)
+		);
+	}
+
+	/**
+	 * Write (or update) a Dataview-readable companion file next to the active
+	 * note. This is an opt-in bridge so other plugins (e.g. Dataview) can read
+	 * where custom syntax matched — without patching Obsidian's metadata cache.
+	 */
+	private async writeCompanion(): Promise<void> {
+		const file = this.app.workspace.getActiveFile();
+		if (!file || file.extension !== "md") {
+			new Notice("Open a Markdown note first.");
+			return;
+		}
+		const content = await this.app.vault.read(file);
+		const occ = scanContent(content, this.settings.rules);
+		const metaName = `${file.basename}.cs-meta.md`;
+		const metaPath = file.parent
+			? `${file.parent.path}/${metaName}`
+			: metaName;
+		const body = buildCompanion(file.basename, occ);
+		const existing = this.app.vault.getAbstractFileByPath(metaPath);
+		if (existing instanceof TFile) {
+			await this.app.vault.modify(existing, body);
+		} else {
+			await this.app.vault.create(metaPath, body);
+		}
+		new Notice(`Wrote ${metaName}`);
 	}
 
 	onunload(): void {
@@ -53,7 +124,11 @@ export default class CustomSyntaxPlugin extends Plugin {
 		const data = (await this.loadData()) as
 			| Partial<CustomSyntaxSettings>
 			| null;
-		this.settings = { language: "system", rules: [], showRibbon: true };
+		this.settings = {
+			language: "system",
+			rules: [],
+			showRibbon: true,
+		};
 
 		const lang = data?.language;
 		this.settings.language =

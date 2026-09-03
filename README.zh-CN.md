@@ -2,32 +2,36 @@
 
 > [English](README.md)
 
-一个 [Obsidian](https://obsidian.md) 插件，让你自定义**行内语法分隔符**，并用**你自己的 CSS** 渲染它们——享受与内置 Markdown 一致的**原生实时预览**体验。
+一个 [Obsidian](https://obsidian.md) 插件，让你自定义**行内与块级语法**，并用**你自己的 CSS** 渲染它们——享受与内置 Markdown 一致的**原生实时预览**体验。
 
-用你定义的分隔符包裹文字（例如 `++文字++`），它就会立即以你指定的 CSS 渲染。标记（分隔符）在光标移出时自动隐藏、光标进入时淡色显示——就像 Obsidian 原生的 `**粗体**` 或 `~~删除线~~` 一样。
+用你定义的分隔符包裹文字（例如 `++文字++`），或用 `:::note … :::` 标记一整块，它就会立即以你指定的 CSS 渲染。标记（分隔符）在光标移出时自动隐藏、光标进入时淡色显示——就像 Obsidian 原生的 `**粗体**` 或 `~~删除线~~` 一样。
 
 ## 特性
 
-- 自定义任意行内分隔符，映射到任意 CSS 样式
-- Live Preview / 源码模式原生实时预览
-- 分隔符自动隐藏，光标进入时淡色显示，便于编辑
+- 自定义任意**行内分隔符**，映射到任意 CSS 样式
+- 自定义**块级语法**，四种形态：围栏块（`:::类型`）、多行块（`++ … ++`）、自定义 Callout（`> [!类型]`）、行内配对
+- 可选**参数捕获**——`{ .类名 #id 键=值 }` 动态套用
+- Live Preview / 源码模式原生实时预览（编辑时标记淡色显示）
 - 阅读视图渲染，自动跳过代码块、行内代码、链接、公式
 - 与 Markdown 内置语法（如 `**`、`==`、`` ` ``）及其他自定义规则做冲突检测
+- 内置可查询的**语法索引**（含可选的 Dataview 可读伴生文件）
 - 中英双语界面，支持「跟随系统」语言
 
 ## 原理
 
-插件从不改写你的 Markdown 源码，而是使用两个官方扩展点：
+插件从不改写你的 Markdown 源码，而是使用官方扩展点：
 
-- **Live Preview / 源码模式**——通过 CodeMirror 6 编辑器扩展（`registerEditorExtension`）应用装饰，与 Obsidian 渲染自身语法的机制相同。
-- **阅读视图**——通过 Markdown 后处理器（`registerMarkdownPostProcessor`）渲染内容，并跳过代码块、行内代码、链接、公式。
+- **Live Preview / 源码模式**——通过 CodeMirror 6 编辑器扩展（`registerEditorExtension`）应用装饰，与 Obsidian 渲染自身语法的机制相同。块级标记会以淡色强调显示，让你知道它已被识别。
+- **阅读视图**——通过 Markdown 后处理器（`registerMarkdownPostProcessor`）把匹配的块重组为带样式的容器，并装饰行内匹配，跳过代码块、行内代码、链接、公式。
+
+> 插件只做视觉装饰，不新增真正的 Markdown AST 节点，因此复制到其它编辑器或导出时分隔符原样保留。
 
 ## 使用方法
 
-1. 打开 **设置 → Custom Syntax**。
+1. 打开 **设置 → Custom Syntax**（或右侧边栏规则管理器）。
 2. 点击 **添加规则**。
-3. 填写**规则名**和**分隔符**（如 `++`）。
-4. 可选填写**类名**（如 `my-highlight`），如果你希望通过 CSS 片段而非行内声明来控制样式。
+3. 选择**语法类别**：行内配对 / 围栏块 / 多行块 / 自定义 Callout。
+4. 填写**标记**（如 `++` 或 `:::`）与**规则名**。
 5. 在**样式声明**里只写 CSS 花括号 `{ }` 里的内容——每行一条声明，不需要写选择器：
 
    ```css
@@ -36,13 +40,88 @@
    padding: 1px 5px;
    ```
 
-6. 在笔记中输入 `++文字++` 即可。
+6. 在笔记中输入你的语法即可。
 
 每条规则是一张卡片，右侧有编辑、删除，以及启用/禁用开关。当规则与其它规则（或内置 Markdown 语法）冲突时，会在创建前提示你。
 
-样式声明输入框是一个小型 CodeMirror 编辑器：语法高亮、属性与值补全（含 Obsidian 自带的 CSS 变量）、括号与引号自动配对、撤销历史、多光标、`Tab` 缩进、`Ctrl/Cmd+Enter` 保存。
+## 块级语法
 
-> **提示：** 你不需要写选择器——插件会把你的声明包进规则自己的类里。一对中间没有内容的分隔符（如 `++++`）会被忽略，不会破坏渲染。
+四种类别在编辑器（标记高亮）与阅读视图（带样式的容器）中都会渲染：
+
+```markdown
+++行内文字++
+
+:::note
+这是围栏块。
+:::
+
+++
+
+这是多行块
+跨两行。
+
+++
+
+> [!mynote]
+这是自定义 callout（由插件加样式）
+```
+
+- **围栏块**——Pandoc 式 `:::类型 … :::`。开启「读取类型」后，类型成为类名钩子（如 `:::note` → `.cs-fence-note`），CSS 片段可按类型精确定制。
+- **多行块**——起始标记独占一行，结束标记也独占一行。
+- **自定义 Callout**——`> [!类型]` 触发 Obsidian 原生 callout 盒子，插件仅加你的类名/样式。
+- **捕获参数**——开启开关后，在标记后写 `{ .类名 #id 键=值 }`：`:::note { .box #main color=red } … :::` 会加上类 `box`、id `main` 与 `color: red`。
+
+## 块级样式的类模型
+
+阅读视图里，每个块级匹配会被包进一个容器 `<div>`，并带上固定的一组类，方便你用 CSS 片段精确定制：
+
+| 类 | 何时出现 | 用途 |
+| --- | --- | --- |
+| `.cs-block` | 永远 | 所有块级语法的公共容器（基础盒由插件内置默认提供） |
+| `.cs-block-<规则id>` | 永远 | 精确命中某一条规则（规则 id 在设置卡片上可见） |
+| `.cs-fence-<类型>` | 开启「读取类型」的围栏块 | `:::note → .cs-fence-note`、`:::warning → .cs-fence-warning` … |
+
+插件已为最常见的类型内置默认强调色（左侧色条）：`note`(强调色)、`info`(蓝)、`tip`/`success`(绿)、`warning`(橙)、`danger`(红)、`example`(紫)、`quote`(灰)。其它类型名只要按 `.cs-fence-<你的类型>` 写即可。
+
+> **坑：规则「样式声明」是行内样式，会盖过上面的类型色。** 若你在规则声明里写了 `border-left`，那么 `:::note` 和 `:::warning` 会显示同一种颜色。想让类型色生效，二选一：
+> 1. 把规则声明里的 `border-left` 删掉（保留 `padding` / `border-radius` 等），交给 `.cs-fence-*` 控制颜色；
+> 2. 在你的 CSS 片段里用 `!important` 强制覆盖（见下方「片段示例」）。
+
+### 片段示例
+
+把下面内容存成 **设置 → 外观 → CSS 片段** 里的一个 `.css` 文件并启用（本仓库示例：`custom-syntax-blocks.css`，含类型标题）：
+
+```css
+/* 基础盒 */
+.cs-block {
+	margin: 1em 0;
+	padding: 0.9em 1em 0.9em 1.2em;
+	border: 1px solid var(--background-modifier-border);
+	border-left-width: 4px;
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-secondary);
+}
+
+/* 按类型分色（!important 盖过规则行内声明） */
+.cs-fence-note    { border-left: 4px solid var(--interactive-accent) !important; }
+.cs-fence-info    { border-left: 4px solid var(--text-link) !important; }
+.cs-fence-tip     { border-left: 4px solid var(--color-green) !important; }
+.cs-fence-warning { border-left: 4px solid var(--color-orange) !important; }
+.cs-fence-danger  { border-left: 4px solid var(--color-red) !important; }
+
+/* 类型标题 */
+.cs-block[class*="cs-fence-"]::before {
+	display: block;
+	margin: -0.1em 0 0.55em;
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+.cs-fence-note::before    { content: "Note"; }
+.cs-fence-warning::before { content: "Warning"; }
+.cs-fence-danger::before  { content: "Danger"; }
+```
 
 ## 两种方式给规则加样式
 
@@ -66,7 +145,7 @@
 ++这段文字++ 会带上这个类
 ```
 
-每个匹配还会额外带上一个公共类（`.custom-syntax-content`）和一个按规则固定的类（`.custom-syntax-<id>-content`），因此片段既能一次性命中所有匹配，也能精确命中某一条规则。
+每个匹配还会额外带上一个公共类（`.custom-syntax-content`）和一个按规则固定的类（行内为 `.custom-syntax-<id>-content`，块级为 `.cs-block-<id>`），因此片段既能一次性命中所有匹配，也能精确命中某一条规则。
 
 类样式支持行内样式做不到的东西——`:hover`、伪元素、媒体查询、被主题覆盖——还能让多条规则共用一份样式。
 
@@ -79,6 +158,12 @@
 之后样式就完全由片段接管了。
 
 > **注意：** 只要规则里还写着声明，它们就会以行内样式优先生效、盖过片段。想让片段说了算，请清空声明，或在片段里使用 `!important`。
+
+## 语义索引与伴生文件（实验性）
+
+当你打开或编辑笔记时，插件会懒加载建立自有索引，记录每条规则在何处匹配。其它插件可通过插件实例的 `syntaxIndex` API 读取——**绝不修改 Obsidian 元数据缓存**，因此能随版本更新长期可用。
+
+命令面板中的 **Generate syntax metadata companion** 会为当前笔记生成 `<笔记名>.cs-meta.md` 伴生文件，内含 Dataview 可读的内联字段（`cs-rule::`、`cs-kind::`、`cs-line::`、`cs-type::`），使你的自定义标记可被 Dataview 查询。该伴生文件为额外生成，可随时删除。
 
 ## 声明示例
 
@@ -111,6 +196,12 @@
   ```css
   text-decoration: underline;
   ```
+
+## 已知限制
+
+- 插件只做视觉装饰，不新增真正的 Markdown AST 节点；复制到 Typora 或 Pandoc 导出时分隔符原样保留。
+- 嵌套块级语法为有限支持；代码块与公式内部不渲染。
+- 「可视化编辑」按钮为占位，尚未开放。
 
 ## 后续计划
 
