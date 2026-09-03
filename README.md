@@ -2,32 +2,36 @@
 
 > [中文说明](README.zh-CN.md)
 
-An [Obsidian](https://obsidian.md) plugin that lets you define **custom inline syntax delimiters** and render them with **your own CSS** — with native, real-time preview, just like built-in Markdown.
+An [Obsidian](https://obsidian.md) plugin that lets you define **custom inline and block syntax** and render it with **your own CSS** — with native, real-time preview, just like built-in Markdown.
 
-Wrap text with a delimiter you define (e.g. `++text++`) and it renders instantly with the CSS you specify. The markers are hidden until you place the cursor inside them — exactly like Obsidian's native `**bold**` or `~~strikethrough~~`.
+Wrap text with a delimiter you define (e.g. `++text++`), or mark a whole block with `:::note … :::`, and it renders instantly with the CSS you specify. Markers are hidden until you place the cursor inside them — exactly like Obsidian's native `**bold**` or `~~strikethrough~~`.
 
 ## Features
 
-- Define any inline delimiter and map it to arbitrary CSS.
-- Native real-time preview in Live Preview and Source mode.
-- Markers hide automatically and reappear when the cursor is inside the match.
-- Reading view rendering via a Markdown post-processor.
+- Define any **inline delimiter** and map it to arbitrary CSS.
+- Define **block syntax** in four shapes: fenced blocks (`:::type`), multiline blocks (`++ … ++`), custom callouts (`> [!type]`), and inline pairs.
+- Optional **parameter capture** — `{ .class #id key=value }` applied dynamically.
+- Native real-time preview in Live Preview and Source mode (markers dim while editing).
+- Reading-view rendering via a Markdown post-processor, skipping code blocks, inline code, links, and math.
 - Conflict detection against built-in Markdown syntax (e.g. `**`, `==`, `` ` ``) and against your other custom rules.
+- A built-in, queryable **syntax index** (with an opt-in Dataview-readable companion file).
 - Bilingual UI (English / 中文), with "follow system" language detection.
 
 ## How it works
 
-The plugin never rewrites your Markdown source. It uses two official extension points:
+The plugin never rewrites your Markdown source. It uses official extension points:
 
-- **Live Preview / Source mode** — a CodeMirror 6 editor extension (`registerEditorExtension`) applies decorations, the same mechanism Obsidian uses for its own syntax.
-- **Reading view** — a Markdown post-processor (`registerMarkdownPostProcessor`) styles the rendered content, skipping code blocks, inline code, links, and math.
+- **Live Preview / Source mode** — a CodeMirror 6 editor extension (`registerEditorExtension`) applies decorations, the same mechanism Obsidian uses for its own syntax. Block markers are highlighted with a subtle accent so you can see them recognised.
+- **Reading view** — a Markdown post-processor (`registerMarkdownPostProcessor`) restructures matched blocks into styled containers and styles inline matches, skipping code blocks, inline code, links, and math.
+
+> The plugin only decorates — it does not add real Markdown AST nodes, so copying to other editors or exporting keeps your delimiters as-is.
 
 ## Usage
 
-1. Open **Settings → Custom Syntax**.
+1. Open **Settings → Custom Syntax** (or the right-sidebar rule manager).
 2. Click **Add rule**.
-3. Enter a **name** and a **delimiter** (e.g. `++`).
-4. Optionally fill in **Class name** (e.g. `my-highlight`) if you want to style this rule from a CSS snippet instead of inline declarations.
+3. Pick a **syntax category**: inline pair / fenced block / multiline block / custom callout.
+4. Fill in the **marker** (e.g. `++` or `:::`) and a **name**.
 5. In **Style declarations**, write only what goes inside a CSS rule's curly braces `{ }` — one declaration per line, no selector needed:
 
    ```css
@@ -36,13 +40,37 @@ The plugin never rewrites your Markdown source. It uses two official extension p
    padding: 1px 5px;
    ```
 
-6. Type `++text++` in a note.
+6. Type your syntax in a note.
 
 Each rule is a card with edit, delete, and an enable/disable toggle. When a rule conflicts with another (or with built-in Markdown), you're warned before creating it.
 
-The declarations editor is a small CodeMirror instance: syntax highlighting, property and value completion (including Obsidian's own CSS variables), bracket/quote auto-closing, undo history, multi-cursor, `Tab` to indent, and `Ctrl/Cmd+Enter` to save.
+## Block-level syntax
 
-> **Tip:** you don't need a selector — the plugin wraps your declarations in the rule's own class for you. A delimiter pair with nothing inside it (e.g. `++++`) is ignored, so it won't break rendering.
+All four categories render in both the editor (marker highlight) and reading view (styled container):
+
+```markdown
+++inline text++
+
+:::note
+This is a fenced block.
+:::
+
+++
+
+This is a multiline block
+spanning two lines.
+
+++
+
+> [!mynote]
+This is a custom callout (styled by the plugin)
+```
+
+- **Fenced block** — Pandoc-style `:::type … :::`. With *Read type* on, the type becomes a class hook (e.g. `:::note` → `.cs-fence-note`), so a CSS snippet can target it.
+- **Multiline block** — a marker alone on its line opens, the same marker alone on a later line closes.
+- **Custom callout** — `> [!type]` triggers Obsidian's native callout box; the plugin only adds your class/style.
+- **Capture parameters** — with the toggle on, write `{ .class #id key=value }` after the marker:
+  `:::note { .box #main color=red } … :::` adds the class `box`, the id `main`, and `color: red`.
 
 ## Two ways to style a rule
 
@@ -66,7 +94,7 @@ Give the rule a **class name** (e.g. `my-highlight`) and leave the declarations 
 ++this text++ gets the class
 ```
 
-Every match also carries a shared class (`.custom-syntax-content`) and a stable per-rule class (`.custom-syntax-<id>-content`), so a snippet can target all matches or one rule exactly.
+Every match also carries a shared class (`.custom-syntax-content`) and a stable per-rule class (`.custom-syntax-<id>-content` for inline, `.cs-block-<id>` for blocks), so a snippet can target all matches or one rule exactly.
 
 Class-based styling supports everything inline declarations cannot — `:hover`, pseudo-elements, media queries, and overrides from themes — and lets several rules share one style.
 
@@ -79,6 +107,12 @@ Class-based styling supports everything inline declarations cannot — `:hover`,
 The snippet now owns the styling.
 
 > **Note:** while a rule has declarations, they are applied inline and take precedence over a snippet. To let a snippet win, clear the declarations — or use `!important` in your snippet.
+
+## Semantic index & companion (experimental)
+
+As you open or edit a note, the plugin lazily builds its own index of where each rule matched. Other plugins can read it through the plugin instance's `syntaxIndex` API — the Obsidian metadata cache is **never patched**, so it survives app updates.
+
+The command **Generate syntax metadata companion** writes a `<note>.cs-meta.md` file next to the current note, containing Dataview-readable inline fields (`cs-rule::`, `cs-kind::`, `cs-line::`, `cs-type::`) so your custom markers become queryable from Dataview. The companion is an extra file you can delete at any time.
 
 ## Example declarations
 
@@ -111,6 +145,12 @@ Each example is written exactly as you would in the declarations box — declara
   ```css
   text-decoration: underline;
   ```
+
+## Known limitations
+
+- The plugin decorates only — it does not add real Markdown AST nodes; copying to Typora or exporting via Pandoc keeps the delimiters as-is.
+- Nested block syntax has limited support; code blocks and math are never rendered.
+- The "Visual editor" button is a placeholder and is not yet available.
 
 ## Roadmap
 

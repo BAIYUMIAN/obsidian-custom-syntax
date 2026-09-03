@@ -752,12 +752,40 @@ var DEFAULT_SETTINGS = {
     {
       id: "rounded-box",
       name: "\u5706\u89D2\u8FB9\u6846",
-      delimiter: "++",
+      enabled: true,
+      kind: "inline",
+      open: "++",
+      close: "++",
+      readType: false,
+      captureParams: false,
       css: `border: 1px solid var(--interactive-accent);
 border-radius: 6px;
 padding: 1px 5px;`,
-      className: "",
-      enabled: true
+      className: ""
+    },
+    {
+      id: "fenced-note",
+      name: "\u56F4\u680F\u5757 (:::note)",
+      enabled: true,
+      kind: "fenced",
+      open: ":::",
+      close: ":::",
+      readType: true,
+      captureParams: false,
+      css: "",
+      className: ""
+    },
+    {
+      id: "multiline-plus",
+      name: "\u591A\u884C\u5757 (++)",
+      enabled: true,
+      kind: "multiline",
+      open: "++",
+      close: "++",
+      readType: false,
+      captureParams: false,
+      css: "",
+      className: ""
     }
   ],
   showRibbon: true
@@ -766,15 +794,23 @@ function newRuleId() {
   return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 function normalizeRule(r) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  const kind = r.kind === "fenced" || r.kind === "multiline" || r.kind === "callout" ? r.kind : "inline";
+  const legacy = r;
+  const open = (_b = (_a = r.open) != null ? _a : legacy.delimiter) != null ? _b : "";
+  const close = (_c = r.close) != null ? _c : kind === "inline" ? open : kind === "fenced" ? open : "";
   return {
     id: typeof r.id === "string" && r.id ? r.id : newRuleId(),
     name: typeof r.name === "string" ? r.name : "",
-    delimiter: (_a = r.delimiter) != null ? _a : "",
-    css: (_b = r.css) != null ? _b : "",
-    className: sanitizeClassName((_c = r.className) != null ? _c : ""),
     enabled: (_d = r.enabled) != null ? _d : true,
-    conflictWithId: (_e = r.conflictWithId) != null ? _e : null
+    kind,
+    open,
+    close,
+    readType: (_e = r.readType) != null ? _e : kind === "callout" ? true : kind === "fenced",
+    captureParams: (_f = r.captureParams) != null ? _f : false,
+    css: (_g = r.css) != null ? _g : "",
+    className: sanitizeClassName((_h = r.className) != null ? _h : ""),
+    conflictWithId: (_i = r.conflictWithId) != null ? _i : null
   };
 }
 function ruleClassName(id) {
@@ -803,11 +839,11 @@ function exportRulesAsCss(rules) {
       continue;
     }
     const extra = sanitizeClassName(rule.className);
-    const selector = extra ? `.${extra.split(" ").join(".")}` : `.${ruleContentClass(rule.id)}`;
-    const label = rule.name || rule.delimiter || rule.id;
+    const selector = extra ? `.${extra.split(" ").join(".")}` : rule.kind === "inline" ? `.${ruleContentClass(rule.id)}` : `.cs-block-${rule.id}`;
+    const label = rule.name || rule.open || rule.id;
     const declarations = css.split(";").map((decl) => decl.trim()).filter(Boolean).map((decl) => `	${decl};`).join("\n");
     blocks.push(
-      `/* ${label} \u2014 ${rule.delimiter} */
+      `/* ${label} \u2014 ${rule.open} */
 ${selector} {
 ${declarations}
 }`
@@ -869,7 +905,7 @@ function findCustomConflict(delim, rules, excludeId) {
     if (excludeId && r.id === excludeId) {
       continue;
     }
-    if (delimitersConflict(delim, r.delimiter)) {
+    if (delimitersConflict(delim, r.open)) {
       return r;
     }
   }
@@ -913,7 +949,7 @@ padding: 1px 5px;`,
     cancel: "\u53D6\u6D88",
     create: "\u521B\u5EFA",
     save: "\u4FDD\u5B58",
-    delimiterRequired: "\u5206\u9694\u7B26\u4E0D\u80FD\u4E3A\u7A7A",
+    delimiterRequired: "\u6807\u8BB0\u4E0D\u80FD\u4E3A\u7A7A",
     conflictBuiltin: "\u4E0E Markdown \u5185\u7F6E\u8BED\u6CD5\u300C{name}\u300D\u51B2\u7A81",
     conflictCustomCreate: "\u4E0E\u81EA\u5B9A\u4E49\u8BED\u6CD5\u300C{name}\u300D\u51B2\u7A81\uFF0C\u518D\u6B21\u786E\u8BA4\u5C06\u521B\u5EFA\u5E76\u7981\u7528",
     conflictCustomSave: "\u4E0E\u81EA\u5B9A\u4E49\u8BED\u6CD5\u300C{name}\u300D\u51B2\u7A81\uFF0C\u518D\u6B21\u786E\u8BA4\u5C06\u4FDD\u5B58\u5E76\u7981\u7528",
@@ -934,7 +970,25 @@ padding: 1px 5px;`,
     docsOpen: "\u6253\u5F00",
     close: "\u5173\u95ED",
     languageSwitch: "\u5207\u6362\u8BED\u8A00",
-    openSettings: "\u8BBE\u7F6E"
+    openSettings: "\u8BBE\u7F6E",
+    category: "\u8BED\u6CD5\u7C7B\u522B",
+    enabledLabel: "\u542F\u7528",
+    catInline: "\u884C\u5185\u914D\u5BF9",
+    catFenced: "\u56F4\u680F\u5757",
+    catMultiline: "\u591A\u884C\u5757",
+    catCallout: "\u81EA\u5B9A\u4E49 Callout",
+    openMarker: "\u8D77\u59CB\u6807\u8BB0",
+    openMarkerDesc: "\u5757\u8D77\u59CB\u884C\u7684\u6807\u8BB0\uFF0C\u4F8B\u5982 ::: \u6216 ++",
+    closeMarker: "\u7ED3\u675F\u6807\u8BB0",
+    closeMarkerDesc: "\u5757\u7ED3\u675F\u884C\u7684\u6807\u8BB0\uFF0C\u4F8B\u5982 ::: \u6216 ++",
+    typeName: "\u7C7B\u578B\u540D",
+    typeNameDesc: "Obsidian callout \u7C7B\u578B\u540D\uFF0C\u4F8B\u5982 mynote\uFF1B\u5728\u7B14\u8BB0\u91CC\u7528 > [!mynote] \u89E6\u53D1",
+    readType: "\u8BFB\u53D6\u7C7B\u578B",
+    readTypeDesc: "\u4ECE\u8D77\u59CB\u884C\u8BFB\u53D6\u7C7B\u578B\uFF08\u5982 :::note \u7684\u7C7B\u578B\u4E3A note\uFF09\uFF0C\u4F5C\u4E3A\u7C7B\u540D\u94A9\u5B50",
+    captureParams: "\u6355\u83B7\u53C2\u6570",
+    captureParamsDesc: "\u5728\u6807\u8BB0\u540E\u89E3\u6790 { .class #id k=v } \u5E76\u52A8\u6001\u5957\u7528",
+    markerPlaceholder: ":::",
+    typePlaceholder: "mynote"
   },
   en: {
     pluginName: "Custom Syntax",
@@ -973,7 +1027,7 @@ padding: 1px 5px;`,
     cancel: "Cancel",
     create: "Create",
     save: "Save",
-    delimiterRequired: "Delimiter is required",
+    delimiterRequired: "Marker is required",
     conflictBuiltin: 'Conflicts with built-in Markdown syntax "{name}"',
     conflictCustomCreate: 'Conflicts with custom syntax "{name}" \u2014 confirm again to create (disabled)',
     conflictCustomSave: 'Conflicts with custom syntax "{name}" \u2014 confirm again to save (disabled)',
@@ -994,7 +1048,25 @@ padding: 1px 5px;`,
     docsOpen: "Open",
     close: "Close",
     languageSwitch: "Switch language",
-    openSettings: "Settings"
+    openSettings: "Settings",
+    category: "Syntax category",
+    enabledLabel: "Enabled",
+    catInline: "Inline pair",
+    catFenced: "Fenced block",
+    catMultiline: "Multiline block",
+    catCallout: "Custom callout",
+    openMarker: "Opening marker",
+    openMarkerDesc: "The marker on the block's opening line, e.g. ::: or ++",
+    closeMarker: "Closing marker",
+    closeMarkerDesc: "The marker on the block's closing line, e.g. ::: or ++",
+    typeName: "Type name",
+    typeNameDesc: "The Obsidian callout type name, e.g. mynote; trigger with > [!mynote]",
+    readType: "Read type",
+    readTypeDesc: "Read the type from the opening line (e.g. :::note -> note) as a class hook",
+    captureParams: "Capture parameters",
+    captureParamsDesc: "Parse { .class #id k=v } after the match and apply it dynamically",
+    markerPlaceholder: ":::",
+    typePlaceholder: "mynote"
   }
 };
 function resolveLanguage(lang) {
@@ -1040,29 +1112,64 @@ var ConfirmModal = class extends import_obsidian.Modal {
 };
 var RuleForm = class {
   constructor(container, plugin, rule, onSubmit) {
+    this.kind = "inline";
     this.pendingCustomConflict = null;
+    this.enabled = true;
+    this.readType = false;
+    this.captureParams = false;
     this.plugin = plugin;
     this.rule = rule;
     this.onSubmit = onSubmit;
     this.build(container);
   }
   build(container) {
-    var _a, _b;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     const t = stringsFor(this.plugin.settings.language);
+    this.kind = (_b = (_a = this.rule) == null ? void 0 : _a.kind) != null ? _b : "inline";
+    this.enabled = (_d = (_c = this.rule) == null ? void 0 : _c.enabled) != null ? _d : true;
+    this.readType = (_f = (_e = this.rule) == null ? void 0 : _e.readType) != null ? _f : this.kind === "fenced" || this.kind === "callout";
+    this.captureParams = (_h = (_g = this.rule) == null ? void 0 : _g.captureParams) != null ? _h : false;
+    const cat = new import_obsidian.Setting(container).setName(t.category);
+    const seg = cat.controlEl.createDiv({ cls: "custom-syntax-cat-seg" });
+    const kinds = ["inline", "fenced", "multiline", "callout"];
+    const labelOf = {
+      inline: t.catInline,
+      fenced: t.catFenced,
+      multiline: t.catMultiline,
+      callout: t.catCallout
+    };
+    const buttons = {};
+    for (const k of kinds) {
+      const b = seg.createEl("button", {
+        text: labelOf[k],
+        cls: "custom-syntax-cat-btn"
+      });
+      if (k === this.kind) b.addClass("is-active");
+      b.addEventListener("click", () => {
+        if (this.kind === k) return;
+        this.kind = k;
+        for (const kk of kinds) {
+          buttons[kk].toggleClass("is-active", kk === k);
+        }
+        this.renderConditional();
+      });
+      buttons[k] = b;
+    }
     new import_obsidian.Setting(container).setName(t.ruleName).addText((text) => {
       var _a2, _b2;
       this.nameInput = text.inputEl;
       text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.name) != null ? _b2 : "").setPlaceholder(t.ruleNamePlaceholder);
     });
-    new import_obsidian.Setting(container).setName(t.delimiter).addText((text) => {
-      var _a2, _b2;
-      this.delimInput = text.inputEl;
-      text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.delimiter) != null ? _b2 : "++").setPlaceholder("++");
-      this.delimInput.addEventListener("input", () => {
-        this.pendingCustomConflict = null;
-        this.clearError();
+    new import_obsidian.Setting(container).setName(t.enabledLabel).addToggle((tg) => {
+      tg.setValue(this.enabled);
+      tg.onChange((v) => {
+        this.enabled = v;
       });
     });
+    this.conditionalEl = container.createDiv({
+      cls: "custom-syntax-conditional"
+    });
+    this.renderConditional();
     new import_obsidian.Setting(container).setName(t.className).addText((text) => {
       var _a2, _b2;
       this.classInput = text.inputEl;
@@ -1078,7 +1185,7 @@ var RuleForm = class {
     });
     this.cssEditor = createCssEditor(
       cssHost,
-      (_b = (_a = this.rule) == null ? void 0 : _a.css) != null ? _b : DEFAULT_SETTINGS.rules[0].css,
+      (_j = (_i = this.rule) == null ? void 0 : _i.css) != null ? _j : DEFAULT_SETTINGS.rules[0].css,
       {
         placeholderText: t.cssPlaceholder,
         ariaLabel: t.cssAria,
@@ -1086,6 +1193,64 @@ var RuleForm = class {
       }
     );
     this.errorEl = container.createDiv({ cls: "custom-syntax-error" });
+  }
+  /** (Re)build the category-dependent fields without touching common ones. */
+  renderConditional() {
+    const t = stringsFor(this.plugin.settings.language);
+    this.conditionalEl.empty();
+    this.openInput = void 0;
+    this.closeInput = void 0;
+    if (this.kind === "inline") {
+      new import_obsidian.Setting(this.conditionalEl).setName(t.delimiter).addText((text) => {
+        var _a, _b;
+        this.openInput = text.inputEl;
+        text.setValue((_b = (_a = this.rule) == null ? void 0 : _a.open) != null ? _b : "++").setPlaceholder("++");
+        this.openInput.addEventListener("input", () => {
+          this.pendingCustomConflict = null;
+          this.clearError();
+        });
+      });
+    } else if (this.kind === "fenced") {
+      new import_obsidian.Setting(this.conditionalEl).setName(t.openMarker).addText((text) => {
+        var _a, _b;
+        this.openInput = text.inputEl;
+        text.setValue((_b = (_a = this.rule) == null ? void 0 : _a.open) != null ? _b : ":::").setPlaceholder(t.markerPlaceholder);
+      });
+      new import_obsidian.Setting(this.conditionalEl).setName(t.readType).addToggle((tg) => {
+        tg.setValue(this.readType);
+        tg.onChange((v) => {
+          this.readType = v;
+        });
+      });
+      this.addCaptureToggle();
+    } else if (this.kind === "multiline") {
+      new import_obsidian.Setting(this.conditionalEl).setName(t.openMarker).addText((text) => {
+        var _a, _b;
+        this.openInput = text.inputEl;
+        text.setValue((_b = (_a = this.rule) == null ? void 0 : _a.open) != null ? _b : "++").setPlaceholder(t.markerPlaceholder);
+      });
+      new import_obsidian.Setting(this.conditionalEl).setName(t.closeMarker).addText((text) => {
+        var _a, _b;
+        this.closeInput = text.inputEl;
+        text.setValue((_b = (_a = this.rule) == null ? void 0 : _a.close) != null ? _b : "++").setPlaceholder(t.markerPlaceholder);
+      });
+      this.addCaptureToggle();
+    } else {
+      new import_obsidian.Setting(this.conditionalEl).setName(t.typeName).addText((text) => {
+        var _a, _b;
+        this.openInput = text.inputEl;
+        text.setValue((_b = (_a = this.rule) == null ? void 0 : _a.open) != null ? _b : "").setPlaceholder(t.typePlaceholder);
+      });
+    }
+  }
+  addCaptureToggle() {
+    const t = stringsFor(this.plugin.settings.language);
+    new import_obsidian.Setting(this.conditionalEl).setName(t.captureParams).addToggle((tg) => {
+      tg.setValue(this.captureParams);
+      tg.onChange((v) => {
+        this.captureParams = v;
+      });
+    });
   }
   clearError() {
     this.errorEl.empty();
@@ -1101,57 +1266,86 @@ var RuleForm = class {
    * failure shows the error in-place and returns `{ ok: false }`.
    */
   validate() {
-    var _a;
+    var _a, _b, _c, _d, _e;
     const t = stringsFor(this.plugin.settings.language);
     const lang = resolveLanguage(this.plugin.settings.language);
     const name = this.nameInput.value.trim();
-    const delimiter = this.delimInput.value;
     const css = this.cssEditor.getValue();
     const className = sanitizeClassName(this.classInput.value);
-    if (!delimiter) {
-      this.showError(t.delimiterRequired);
-      return { ok: false };
-    }
-    const builtin = findBuiltinConflict(delimiter);
-    if (builtin) {
-      const nm = lang === "zh" ? builtin.zh : builtin.en;
-      this.showError(t.conflictBuiltin.replace("{name}", nm));
-      this.pendingCustomConflict = null;
-      return { ok: false };
-    }
-    const custom = findCustomConflict(
-      delimiter,
-      this.plugin.settings.rules,
-      (_a = this.rule) == null ? void 0 : _a.id
-    );
-    if (custom) {
-      const nm = custom.name || t.untitled;
-      if (this.pendingCustomConflict && this.pendingCustomConflict.id === custom.id) {
-        return {
-          ok: true,
-          value: {
-            name: name || t.untitled,
-            delimiter,
-            css,
-            className,
-            enabled: false
-          }
-        };
+    const open = ((_b = (_a = this.openInput) == null ? void 0 : _a.value) != null ? _b : "").trim();
+    const close = ((_d = (_c = this.closeInput) == null ? void 0 : _c.value) != null ? _d : "").trim();
+    if (this.kind === "inline") {
+      if (!open) {
+        this.showError(t.delimiterRequired);
+        return { ok: false };
       }
-      this.pendingCustomConflict = custom;
-      const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
-      this.showError(msg.replace("{name}", nm));
-      return { ok: false };
+      const builtin = findBuiltinConflict(open);
+      if (builtin) {
+        const nm = lang === "zh" ? builtin.zh : builtin.en;
+        this.showError(t.conflictBuiltin.replace("{name}", nm));
+        this.pendingCustomConflict = null;
+        return { ok: false };
+      }
+      const custom = findCustomConflict(
+        open,
+        this.plugin.settings.rules,
+        (_e = this.rule) == null ? void 0 : _e.id
+      );
+      if (custom) {
+        const nm = custom.name || t.untitled;
+        if (this.pendingCustomConflict && this.pendingCustomConflict.id === custom.id) {
+          return {
+            ok: true,
+            value: this.buildValue(name, "inline", open, open, false, false, css, className)
+          };
+        }
+        this.pendingCustomConflict = custom;
+        const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
+        this.showError(msg.replace("{name}", nm));
+        return { ok: false };
+      }
+    } else if (this.kind === "fenced") {
+      if (!open) {
+        this.showError(t.delimiterRequired);
+        return { ok: false };
+      }
+    } else if (this.kind === "multiline") {
+      if (!open || !close) {
+        this.showError(t.delimiterRequired);
+        return { ok: false };
+      }
+    } else {
+      if (!open) {
+        this.showError(t.delimiterRequired);
+        return { ok: false };
+      }
     }
+    const isBlock = this.kind === "fenced" || this.kind === "multiline";
     return {
       ok: true,
-      value: {
-        name: name || t.untitled,
-        delimiter,
+      value: this.buildValue(
+        name,
+        this.kind,
+        open,
+        this.kind === "inline" ? open : this.kind === "multiline" ? close : "",
+        this.kind === "callout" ? true : this.kind === "fenced" ? this.readType : false,
+        isBlock ? this.captureParams : false,
         css,
-        className,
-        enabled: this.rule ? this.rule.enabled : true
-      }
+        className
+      )
+    };
+  }
+  buildValue(name, kind, open, close, readType, captureParams, css, className) {
+    return {
+      name: name || stringsFor(this.plugin.settings.language).untitled,
+      kind,
+      open,
+      close,
+      readType,
+      captureParams,
+      css,
+      className,
+      enabled: this.enabled
     };
   }
   destroy() {
@@ -1203,7 +1397,7 @@ async function toggleRuleEnabled(plugin, rule, enabled) {
   rule.conflictWithId = null;
   if (enabled) {
     for (const other of plugin.settings.rules) {
-      if (other !== rule && other.enabled && delimitersConflict(rule.delimiter, other.delimiter)) {
+      if (other !== rule && other.enabled && delimitersConflict(rule.open, other.open)) {
         other.enabled = false;
         other.conflictWithId = rule.id;
       }
@@ -1221,14 +1415,25 @@ async function deleteRule(plugin, rule) {
   await plugin.saveSettings();
 }
 function renderRuleCard(containerEl, plugin, rule, onChanged, onEdit) {
+  var _a;
   const t = stringsFor(plugin.settings.language);
   const card = containerEl.createDiv({ cls: "custom-syntax-rule-card" });
   const row = card.createDiv({ cls: "custom-syntax-rule-row" });
+  const badgeLabel = {
+    inline: t.catInline,
+    fenced: t.catFenced,
+    multiline: t.catMultiline,
+    callout: t.catCallout
+  };
+  const badge = row.createDiv({
+    cls: `custom-syntax-rule-badge is-${rule.kind}`,
+    text: (_a = badgeLabel[rule.kind]) != null ? _a : t.catInline
+  });
   const nameEl = row.createDiv({
     cls: "custom-syntax-rule-name",
     text: rule.name || t.untitled
   });
-  nameEl.title = rule.delimiter;
+  nameEl.title = rule.kind === "inline" ? rule.open : `${badgeLabel[rule.kind]} \xB7 ${rule.open}`;
   const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
   const editBtn = controls.createEl("button", { cls: "clickable-icon" });
   editBtn.setAttribute("aria-label", t.edit);
@@ -1389,64 +1594,154 @@ var DocumentationModal = class extends import_obsidian.Modal {
     const body = contentEl.createDiv({ cls: "custom-syntax-doc-body" });
     const sections = lang === "zh" ? [
       {
+        h: "\u6982\u8FF0",
+        p: [
+          "\u81EA\u5B9A\u4E49\u8BED\u6CD5\u8BA9\u4F60\u5B9A\u4E49\u81EA\u5DF1\u7684 Markdown \u6807\u8BB0\uFF0C\u5E76\u7528\u81EA\u6709 CSS \u6E32\u67D3\u3002\u5B83\u53EA\u5728\u7F16\u8F91\u5668\u4E0E\u9605\u8BFB\u89C6\u56FE\u505A\u89C6\u89C9\u88C5\u9970\uFF0C\u6C38\u4E0D\u6539\u5199\u4F60\u7684\u6E90\u6587\u4EF6\u3002",
+          "\u7F16\u8F91\u5668\uFF08\u5B9E\u65F6\u9884\u89C8/\u6E90\u7801\u6A21\u5F0F\uFF09\u901A\u8FC7 CodeMirror \u88C5\u9970\u5B9E\u73B0\uFF0C\u9605\u8BFB\u89C6\u56FE\u901A\u8FC7 Markdown \u540E\u5904\u7406\u5668\u5B9E\u73B0\u2014\u2014\u4E24\u6761\u90FD\u662F\u5B98\u65B9\u7A33\u5B9A\u6269\u5C55\u70B9\u3002"
+        ]
+      },
+      {
         h: "\u6DFB\u52A0\u89C4\u5219",
         p: [
-          "\u70B9\u51FB\u53F3\u4FA7\u8FB9\u680F\u89C4\u5219\u7BA1\u7406\u5668\u91CC\u7684\u300C\u6DFB\u52A0\u89C4\u5219\u300D\uFF0C\u6216\u76F4\u63A5\u70B9\u8BBE\u7F6E\u4E2D\u7684\u300C\u6253\u5F00\u9762\u677F\u300D\u3002",
-          "\u586B\u5199\u89C4\u5219\u540D\u4E0E\u5206\u9694\u7B26\uFF08\u4F8B\u5982 ++\uFF09\uFF0C\u7136\u540E\u5728\u300C\u6837\u5F0F\u58F0\u660E\u300D\u91CC\u53EA\u5199 CSS \u82B1\u62EC\u53F7\u91CC\u7684\u90E8\u5206\uFF1A"
+          "\u5728\u53F3\u4FA7\u8FB9\u680F\u89C4\u5219\u7BA1\u7406\u5668\u70B9\u300C\u6DFB\u52A0\u89C4\u5219\u300D\uFF0C\u6216\u5728\u8BBE\u7F6E\u91CC\u70B9\u300C\u6253\u5F00\u9762\u677F\u300D\u3002",
+          "\u5148\u9009\u300C\u8BED\u6CD5\u7C7B\u522B\u300D\uFF0C\u518D\u586B\u5BF9\u5E94\u6807\u8BB0\uFF0C\u7136\u540E\u5728\u300C\u6837\u5F0F\u58F0\u660E\u300D\u91CC\u53EA\u5199 CSS \u82B1\u62EC\u53F7\u91CC\u7684\u5185\u5BB9\uFF1A"
         ],
         code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;"
       },
       {
-        h: "\u7ACB\u5373\u751F\u6548",
-        p: ["\u5728\u7B14\u8BB0\u91CC\u8F93\u5165 ++\u6587\u5B57++ \u5373\u53EF\u770B\u5230\u6548\u679C\u3002"]
+        h: "\u56DB\u7C7B\u8BED\u6CD5",
+        p: [
+          "\u884C\u5185\u914D\u5BF9\uFF1A\u7528\u6210\u5BF9\u5206\u9694\u7B26\u5305\u88F9\u540C\u4E00\u884C\u6587\u5B57\uFF0C\u4F8B\u5982 ++\u6587\u5B57++\u3002",
+          "\u56F4\u680F\u5757\uFF1APandoc \u5F0F :::\u7C7B\u578B \u2026 ::: \u5BB9\u5668\u5757\uFF0C\u72EC\u5360\u6210\u884C\u3002",
+          "\u591A\u884C\u5757\uFF1A\u8D77\u59CB\u6807\u8BB0\u72EC\u5360\u4E00\u884C\uFF0C\u7ED3\u675F\u6807\u8BB0\u4E5F\u72EC\u5360\u4E00\u884C\uFF0C\u4F8B\u5982\u7528 ++ \u5305\u4F4F\u591A\u884C\u5185\u5BB9\u3002",
+          "\u81EA\u5B9A\u4E49 Callout\uFF1A\u7528 > [!\u7C7B\u578B] \u89E6\u53D1\uFF0C\u76D2\u5B50\u7531 Obsidian \u539F\u751F\u6E32\u67D3\uFF0C\u6211\u4EEC\u4EC5\u52A0\u6837\u5F0F\u3002"
+        ],
+        code: "++\u884C\u5185\u6587\u5B57++\n\n:::note\n\u8FD9\u662F\u56F4\u680F\u5757\n:::\n\n++\n\u8FD9\u662F\u591A\u884C\u5757\n\u8DE8\u4E24\u884C\n++\n\n> [!mynote]\n\u8FD9\u662F\u81EA\u5B9A\u4E49 callout"
       },
       {
-        h: "\u7C7B\u6837\u5F0F\uFF08\u53EF\u9009\uFF09",
+        h: "\u8BFB\u53D6\u7C7B\u578B",
         p: [
-          "\u5728\u300C\u7C7B\u540D\u300D\u91CC\u586B\u4E00\u4E2A\u6216\u591A\u4E2A CSS \u7C7B\u540D\uFF08\u7A7A\u683C\u5206\u9694\uFF09\u3002\u5F53\u300C\u6837\u5F0F\u58F0\u660E\u300D\u7559\u7A7A\u65F6\uFF0C\u6837\u5F0F\u5B8C\u5168\u7531\u4F60\u81EA\u5DF1\u7684 CSS \u7247\u6BB5\u4E2D\u4E3A\u8FD9\u4E2A\u7C7B\u540D\u5199\u7684\u89C4\u5219\u51B3\u5B9A\uFF0C\u4ECE\u800C\u80FD\u88AB\u4E3B\u9898\u590D\u7528\u4E0E\u8986\u76D6\u3002"
+          "\u56F4\u680F\u5757\u4E0E Callout \u53EF\u5F00\u542F\u300C\u8BFB\u53D6\u7C7B\u578B\u300D\uFF1A\u8D77\u59CB\u884C\u7684\u7C7B\u578B\uFF08\u5982 note / mynote\uFF09\u4F1A\u4F5C\u4E3A\u7C7B\u540D\u94A9\u5B50\uFF0C\u8BA9 CSS \u7247\u6BB5\u6309\u7C7B\u578B\u7CBE\u786E\u5B9A\u5236\u3002",
+          '\u4F8B\u5982 :::note \u4F1A\u83B7\u5F97 .cs-fence-note \u7C7B\uFF0C> [!mynote] \u5BF9\u5E94\u539F\u751F data-callout="mynote"\u3002'
+        ]
+      },
+      {
+        h: "\u6355\u83B7\u53C2\u6570",
+        p: [
+          "\u5F00\u542F\u300C\u6355\u83B7\u53C2\u6570\u300D\u540E\uFF0C\u53EF\u5728\u6807\u8BB0\u540E\u5199 { .\u7C7B\u540D #id \u952E=\u503C }\uFF0C\u52A8\u6001\u5957\u7528\u6837\u5F0F\u3002",
+          ".\u7C7B\u540D \u52A0 class\uFF0C#id \u8BBE\u5143\u7D20 id\uFF0C\u952E=\u503C \u8F6C\u4E3A\u5185\u8054 CSS\uFF08\u5982 color=red\uFF09\u3002"
+        ],
+        code: ":::note { .box #main color=red }\n\u5E26\u53C2\u6570\u7684\u56F4\u680F\u5757\n:::"
+      },
+      {
+        h: "\u7C7B\u6837\u5F0F\u590D\u7528\uFF08\u53EF\u9009\uFF09",
+        p: [
+          "\u5728\u300C\u7C7B\u540D\u300D\u91CC\u586B\u4E00\u4E2A\u6216\u591A\u4E2A CSS \u7C7B\u540D\uFF08\u7A7A\u683C\u5206\u9694\uFF09\u3002\u5F53\u300C\u6837\u5F0F\u58F0\u660E\u300D\u7559\u7A7A\u65F6\uFF0C\u6837\u5F0F\u5B8C\u5168\u7531\u4F60\u81EA\u5DF1\u7684 CSS \u7247\u6BB5\u4E2D\u4E3A\u8BE5\u7C7B\u5199\u7684\u89C4\u5219\u51B3\u5B9A\uFF0C\u4ECE\u800C\u80FD\u88AB\u4E3B\u9898\u590D\u7528\u4E0E\u8986\u76D6\u3002",
+          "\u6BCF\u6761\u89C4\u5219\u8FD8\u81EA\u5E26\u7A33\u5B9A\u7C7B\u540D .cs-block-<id>\uFF08\u5757\u7EA7\uFF09\u6216 .custom-syntax-<id>-content\uFF08\u884C\u5185\uFF09\uFF0C\u4FBF\u4E8E\u7CBE\u786E\u5B9A\u4F4D\u3002"
         ]
       },
       {
         h: "\u5BFC\u51FA CSS \u7247\u6BB5",
         p: [
-          "\u5728\u8BBE\u7F6E\u300C\u5BFC\u51FA\u300D\u7EC4\u4E2D\u70B9\u51FB\u300C\u5BFC\u51FA CSS \u7247\u6BB5\u300D\uFF0C\u628A\u73B0\u6709\u89C4\u5219\u7684\u6837\u5F0F\u5BFC\u51FA\u4E3A .css \u6587\u4EF6\uFF0C\u653E\u5165\u4F60\u7684\u7247\u6BB5\u6587\u4EF6\u5939\u5373\u53EF\u957F\u671F\u590D\u7528\u3002"
+          "\u5728\u8BBE\u7F6E\u300C\u5BFC\u51FA\u300D\u7EC4\u70B9\u300C\u5BFC\u51FA CSS \u7247\u6BB5\u300D\uFF0C\u628A\u73B0\u6709\u89C4\u5219\u6837\u5F0F\u5BFC\u51FA\u4E3A .css \u6587\u4EF6\uFF0C\u653E\u5165\u7247\u6BB5\u6587\u4EF6\u5939\u5373\u53EF\u957F\u671F\u590D\u7528\u3002"
         ]
       },
       {
-        h: "\u9605\u8BFB\u6A21\u5F0F",
+        h: "\u9605\u8BFB\u6A21\u5F0F\u884C\u4E3A",
         p: [
-          "\u5206\u9694\u7B26\u5185\u4E3A\u7A7A\uFF08\u4F8B\u5982 ++++\uFF09\u65F6\uFF0C\u4F1A\u5F53\u4F5C\u666E\u901A\u6587\u672C\uFF0C\u4E0D\u505A\u4EFB\u4F55\u6E32\u67D3\u2014\u2014\u8FD9\u548C\u539F\u751F == \u5904\u7406 ==== \u7684\u65B9\u5F0F\u4E00\u81F4\u3002"
+          "\u5206\u9694\u7B26\u5185\u4E3A\u7A7A\uFF08\u4F8B\u5982 ++++\uFF09\u65F6\uFF0C\u5F53\u4F5C\u666E\u901A\u6587\u672C\uFF0C\u4E0D\u505A\u4EFB\u4F55\u6E32\u67D3\u2014\u2014\u8FD9\u548C\u539F\u751F == \u5904\u7406 ==== \u7684\u65B9\u5F0F\u4E00\u81F4\u3002",
+          "\u4EE3\u7801\u5757\u3001\u884C\u5185\u4EE3\u7801\u3001\u516C\u5F0F\u4E0E\u94FE\u63A5\u5185\u90E8\u4E0D\u4F1A\u6E32\u67D3\uFF0C\u4FDD\u62A4\u539F\u6709\u8BED\u4E49\u3002"
+        ]
+      },
+      {
+        h: "\u8BED\u4E49\u7D22\u5F15\u4E0E\u4F34\u751F\u6587\u4EF6\uFF08\u5B9E\u9A8C\u6027\uFF09",
+        p: [
+          "\u63D2\u4EF6\u5728\u300C\u6253\u5F00/\u7F16\u8F91\u300D\u7B14\u8BB0\u65F6\u61D2\u52A0\u8F7D\u5EFA\u7ACB\u81EA\u6709\u7D22\u5F15\uFF0C\u8BB0\u5F55\u6BCF\u6761\u89C4\u5219\u5728\u4F55\u5904\u5339\u914D\uFF0C\u53EF\u901A\u8FC7\u63D2\u4EF6\u5B9E\u4F8B\u7684 syntaxIndex API \u88AB\u5176\u4ED6\u63D2\u4EF6\u8BFB\u53D6\u2014\u2014\u4E0D\u4FEE\u6539 Obsidian \u5143\u6570\u636E\u7F13\u5B58\u3002",
+          "\u547D\u4EE4\u9762\u677F\u4E2D\u7684\u300CGenerate syntax metadata companion\u300D\u4F1A\u4E3A\u5F53\u524D\u7B14\u8BB0\u751F\u6210 <\u7B14\u8BB0\u540D>.cs-meta.md \u4F34\u751F\u6587\u4EF6\uFF0C\u5185\u542B Dataview \u53EF\u8BFB\u7684\u5185\u8054\u5B57\u6BB5\uFF0C\u4F7F\u81EA\u5B9A\u4E49\u6807\u8BB0\u53EF\u88AB Dataview \u67E5\u8BE2\u3002\u8BE5\u6587\u4EF6\u4E3A\u989D\u5916\u751F\u6210\uFF0C\u53EF\u6309\u9700\u5220\u9664\u3002"
+        ]
+      },
+      {
+        h: "\u5DF2\u77E5\u9650\u5236",
+        p: [
+          "\u672C\u63D2\u4EF6\u53EA\u505A\u89C6\u89C9\u88C5\u9970\uFF0C\u4E0D\u65B0\u589E\u771F\u6B63\u7684 Markdown AST \u8282\u70B9\uFF1B\u590D\u5236\u5230 Typora\u3001Pandoc \u5BFC\u51FA\u65F6\u5206\u9694\u7B26\u539F\u6837\u4FDD\u7559\u3002",
+          "\u5D4C\u5957\u5757\u7EA7\u8BED\u6CD5\u4E3A\u6709\u9650\u652F\u6301\uFF1B\u4EE3\u7801\u5757/\u516C\u5F0F\u5185\u90E8\u4E0D\u6E32\u67D3\u3002",
+          "\u300C\u53EF\u89C6\u5316\u7F16\u8F91\u300D\u6309\u94AE\u4E3A\u5360\u4F4D\uFF0C\u5C1A\u672A\u5F00\u653E\u3002"
         ]
       }
     ] : [
       {
+        h: "Overview",
+        p: [
+          "Custom Syntax lets you define your own Markdown markers and style them with your own CSS. It only decorates the editor and reading view \u2014 it never rewrites your source.",
+          "Live Preview / Source mode uses CodeMirror decorations; reading view uses a Markdown post-processor. Both are official, stable extension points."
+        ]
+      },
+      {
         h: "Add a rule",
         p: [
-          'Click "Add rule" in the right-sidebar rule manager, or click "Open panel" in the settings.',
-          "Give the rule a name and a delimiter (e.g. ++), then write only what goes inside the CSS curly braces:"
+          'Click "Add rule" in the right-sidebar rule manager, or "Open panel" in the settings.',
+          "Pick a syntax category, fill in the marker, then write only what goes inside the CSS curly braces:"
         ],
         code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;"
       },
       {
-        h: "Takes effect immediately",
-        p: ["Type ++text++ in a note to see it styled."]
+        h: "The four syntax shapes",
+        p: [
+          "Inline pair: a delimiter wrapping text on the same line, e.g. ++text++.",
+          "Fenced block: a Pandoc-style :::type \u2026 ::: container, on its own lines.",
+          "Multiline block: a marker alone on its line opens, the same marker alone on a later line closes, e.g. ++ around several lines.",
+          "Custom callout: > [!type] triggers a box rendered natively by Obsidian; we only add styling."
+        ],
+        code: "++inline text++\n\n:::note\nThis is a fenced block\n:::\n\n++\nThis is a multiline block\nspanning two lines\n++\n\n> [!mynote]\nThis is a custom callout"
+      },
+      {
+        h: "Read type",
+        p: [
+          "Fenced blocks and callouts can read the type from the opening line (e.g. note / mynote) and expose it as a class hook, so a CSS snippet can target a type precisely.",
+          'For example :::note gets the .cs-fence-note class; > [!mynote] maps to the native data-callout="mynote".'
+        ]
+      },
+      {
+        h: "Capture parameters",
+        p: [
+          'With "Capture parameters" on, write { .class #id key=value } after the marker to apply styles dynamically.',
+          ".class adds a class, #id sets the element id, key=value becomes inline CSS (e.g. color=red)."
+        ],
+        code: ":::note { .box #main color=red }\nA fenced block with parameters\n:::"
       },
       {
         h: "Class-based styling (optional)",
         p: [
-          'Fill in one or more CSS class names (space-separated) under "Class name". When the declarations are left empty, styling comes entirely from the rule you write for that class in your own CSS snippet, so it can be reused and overridden by themes.'
+          'Fill in one or more CSS class names (space-separated) under "Class name". When declarations are left empty, styling comes entirely from your own CSS snippet for that class, so it can be reused and overridden by themes.',
+          "Every rule also carries a stable class \u2014 .cs-block-<id> (blocks) or .custom-syntax-<id>-content (inline) \u2014 for precise targeting."
         ]
       },
       {
         h: "Export as CSS snippet",
         p: [
-          `Under the settings "Export" group, click "Export CSS snippet" to export your rules' styles as a .css file you can drop into your snippets folder for reuse.`
+          `Under the settings "Export" group, click "Export CSS snippet" to export your rules' styles as a .css file you can drop into your snippets folder.`
         ]
       },
       {
         h: "Reading view",
         p: [
-          "A delimiter with nothing inside (e.g. ++++) is left as plain text and not rendered \u2014 just like how native == leaves ==== alone."
+          "A delimiter with nothing inside (e.g. ++++) is left as plain text and not rendered \u2014 like how native == leaves ==== alone.",
+          "Code blocks, inline code, math and links are never decorated, preserving their meaning."
+        ]
+      },
+      {
+        h: "Semantic index & companion (experimental)",
+        p: [
+          "As you open or edit a note, the plugin lazily builds its own index of where each rule matched. Other plugins can read it through the plugin instance's syntaxIndex API \u2014 the Obsidian metadata cache is never patched.",
+          'The command palette command "Generate syntax metadata companion" writes a <note>.cs-meta.md companion next to the current note, with Dataview-readable inline fields so custom markers become queryable. The companion is an extra file you can delete at any time.'
+        ]
+      },
+      {
+        h: "Known limitations",
+        p: [
+          "This plugin only decorates \u2014 it does not add real Markdown AST nodes, and when you copy to Typora or export via Pandoc the delimiters are kept as-is.",
+          "Nested block syntax has limited support; code blocks and math are never rendered.",
+          'The "Visual editor" button is a placeholder and is not yet available.'
         ]
       }
     ];
@@ -1544,7 +1839,7 @@ function buildDecorations(view, rules) {
   const scanRanges = view.visibleRanges.length > 0 ? view.visibleRanges : [{ from: 0, to: view.state.doc.length }];
   const sel = view.state.selection.main;
   for (const rule of rules) {
-    if (!rule.enabled || !rule.delimiter) {
+    if (!rule.enabled || rule.kind !== "inline" || !rule.open) {
       continue;
     }
     const css = ((_a = rule.css) != null ? _a : "").trim();
@@ -1553,7 +1848,7 @@ function buildDecorations(view, rules) {
       continue;
     }
     const contentCls = contentClasses(rule);
-    const delim = rule.delimiter;
+    const delim = rule.open;
     const re = new RegExp(
       `${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
       "g"
@@ -1609,6 +1904,33 @@ function buildDecorations(view, rules) {
       }
     }
   }
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    if (rule.kind !== "fenced" && rule.kind !== "multiline") continue;
+    const open = rule.open;
+    const close = rule.close || open;
+    if (!open) continue;
+    const markerCls = `cs-block-marker cs-block-marker-${rule.id}`;
+    for (const { from, to } of scanRanges) {
+      const text = view.state.sliceDoc(from, to);
+      let lineStart = 0;
+      let idx = 0;
+      while (idx <= text.length) {
+        const nl = text.indexOf("\n", idx);
+        const lineEnd = nl === -1 ? text.length : nl;
+        const trimmed = text.slice(lineStart, lineEnd).trim();
+        const isMarker = rule.kind === "fenced" ? trimmed.startsWith(open) : trimmed === open || trimmed === close;
+        if (isMarker && !isInCode(from + lineStart, from + lineEnd, codeRanges)) {
+          decos.push(
+            import_view2.Decoration.line({ class: markerCls }).range(from + lineStart)
+          );
+        }
+        if (nl === -1) break;
+        idx = nl + 1;
+        lineStart = idx;
+      }
+    }
+  }
   return import_view2.Decoration.set(decos, true);
 }
 function createEditorExtension(getRules) {
@@ -1657,20 +1979,90 @@ function cssToRecord(css) {
   }
   return result;
 }
+function sanitizeType(raw) {
+  return (raw != null ? raw : "").split(/[\s]+/).map((t) => t.trim()).filter((t) => /^-?[A-Za-z_][A-Za-z0-9_-]*$/.test(t)).join("-");
+}
+function blockRuleClasses(rule, type) {
+  const parts = ["cs-block", `cs-block-${rule.id}`];
+  if (type) {
+    parts.push(`cs-fence-${sanitizeType(type)}`);
+  }
+  const extra = sanitizeClassName(rule.className);
+  if (extra) {
+    parts.push(extra);
+  }
+  return parts.join(" ");
+}
+function parseParams(raw) {
+  const result = { classes: [], style: {} };
+  const inner = raw.trim().replace(/^\{|\}$/g, "").trim();
+  if (!inner) {
+    return result;
+  }
+  for (const token of inner.split(/\s+/)) {
+    if (!token) continue;
+    if (token.startsWith(".")) {
+      const cls = sanitizeClassName(token.slice(1));
+      if (cls) result.classes.push(cls);
+    } else if (token.startsWith("#")) {
+      const id = token.slice(1);
+      if (/^-?[A-Za-z_][A-Za-z0-9_-]*$/.test(id)) {
+        result.id = id;
+      }
+    } else {
+      const eq = token.indexOf("=");
+      if (eq > 0) {
+        const prop = token.slice(0, eq).trim();
+        const value = token.slice(eq + 1).trim();
+        if (prop && value && /^[A-Za-z-]+$/.test(prop)) {
+          result.style[prop] = value;
+        }
+      }
+    }
+  }
+  return result;
+}
+function applyParams(el, params) {
+  if (!params) return;
+  if (params.classes.length) {
+    el.addClasses(params.classes);
+  }
+  if (params.id) {
+    el.id = params.id;
+  }
+  if (Object.keys(params.style).length) {
+    el.setCssStyles(params.style);
+  }
+}
 function applyRule(root, rule) {
+  if (!rule.enabled) {
+    return;
+  }
+  switch (rule.kind) {
+    case "inline":
+      applyInline(root, rule);
+      break;
+    case "fenced":
+    case "multiline":
+      applyBlock(root, rule);
+      break;
+    case "callout":
+      applyCallout(root, rule);
+      break;
+  }
+}
+function applyInline(root, rule) {
   var _a, _b, _c, _d, _e;
-  if (!rule.enabled || !rule.delimiter) {
+  const open = rule.open;
+  if (!open) {
     return;
   }
   const css = ((_a = rule.css) != null ? _a : "").trim();
   if (!css && !((_b = rule.className) != null ? _b : "").trim()) {
     return;
   }
-  const delim = rule.delimiter;
-  const re = new RegExp(
-    `${escapeRegExp(delim)}([^\\n]*?)${escapeRegExp(delim)}`,
-    "g"
-  );
+  const head = rule.captureParams ? `${escapeRegExp(open)}\\s*(\\{[^}]*\\})?\\s*([^\\n]*?)` : `${escapeRegExp(open)}([^\\n]*?)`;
+  const re = new RegExp(head + escapeRegExp(open), "g");
   const cssRecord = css ? cssToRecord(css) : null;
   const classes = contentClasses(rule);
   const doc = root.ownerDocument;
@@ -1702,7 +2094,9 @@ function applyRule(root, rule) {
           doc.createTextNode(text.slice(lastIndex, m.index))
         );
       }
-      if (m[1].length === 0) {
+      const paramsRaw = rule.captureParams ? m[1] : void 0;
+      const content = rule.captureParams ? m[2] : m[1];
+      if ((content != null ? content : "").length === 0) {
         lastIndex = m.index + m[0].length;
         continue;
       }
@@ -1711,7 +2105,10 @@ function applyRule(root, rule) {
       if (cssRecord) {
         span.setCssStyles(cssRecord);
       }
-      span.textContent = m[1];
+      if (paramsRaw) {
+        applyParams(span, parseParams(paramsRaw));
+      }
+      span.textContent = content;
       fragment.appendChild(span);
       lastIndex = m.index + m[0].length;
       if (m[0].length === 0) {
@@ -1725,6 +2122,335 @@ function applyRule(root, rule) {
       (_e = node.parentNode) == null ? void 0 : _e.replaceChild(fragment, node);
     }
   }
+}
+function matchOpener(el, rule) {
+  const first = firstLineText(el);
+  if (first === null) return null;
+  const open = rule.open;
+  if (rule.kind === "fenced") {
+    if (!first.startsWith(open)) return null;
+    const tail = first.slice(open.length);
+    let type;
+    let params = null;
+    if (rule.captureParams) {
+      const bs = tail.indexOf("{");
+      if (bs >= 0) {
+        const be = tail.indexOf("}", bs);
+        if (be >= 0) {
+          params = parseParams(tail.slice(bs, be + 1));
+          type = rule.readType ? tail.slice(0, bs).trim() || void 0 : void 0;
+        } else {
+          type = rule.readType ? tail.trim() : void 0;
+        }
+      } else {
+        type = rule.readType ? tail.trim() : void 0;
+      }
+    } else {
+      type = rule.readType ? tail.trim() : void 0;
+    }
+    return { type, params };
+  }
+  if (first === open) {
+    return { params: null };
+  }
+  if (rule.captureParams && first.startsWith(open) && /\{/.test(first.slice(open.length))) {
+    return { params: parseTrailingParams(first.slice(open.length)) };
+  }
+  return null;
+}
+function parseTrailingParams(tail) {
+  const m = tail.trim().match(/^\{(\{[^}]*\}|[^}]*)\}/);
+  if (!m) return null;
+  return parseParams(m[0]);
+}
+function firstLineText(el) {
+  var _a, _b;
+  let buf = "";
+  for (const node of Array.from(el.childNodes)) {
+    if (node.nodeName === "BR") {
+      if (buf) return buf;
+      buf = "";
+      continue;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      const parts = ((_a = node.nodeValue) != null ? _a : "").split("\n");
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0 && (buf || i > 1 || true)) {
+          if (buf) return buf;
+          buf = "";
+        }
+        buf += parts[i];
+      }
+    } else {
+      buf += (_b = node.textContent) != null ? _b : "";
+    }
+  }
+  return buf === "" && el.childNodes.length === 0 ? null : buf;
+}
+function lineText(el) {
+  var _a;
+  return ((_a = el.textContent) != null ? _a : "").replace(/\n/g, " ").trim();
+}
+function splitElementByBr(el) {
+  var _a;
+  const doc = el.ownerDocument;
+  const lines = [[]];
+  for (const node of Array.from(el.childNodes)) {
+    if (node.nodeName === "BR") {
+      lines.push([]);
+      continue;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      const parts = ((_a = node.nodeValue) != null ? _a : "").split("\n");
+      for (let i = 0; i < parts.length; i++) {
+        if (i > 0) lines.push([]);
+        if (parts[i]) lines[lines.length - 1].push(doc.createTextNode(parts[i]));
+      }
+    } else {
+      lines[lines.length - 1].push(node);
+    }
+  }
+  const created = [];
+  for (const lineNodes of lines) {
+    const p = doc.createElement("p");
+    for (const n of lineNodes) p.appendChild(n);
+    created.push(p);
+  }
+  const parent = el.parentElement;
+  if (!parent) return created;
+  let ref = el;
+  for (const p of created) {
+    parent.insertBefore(p, ref);
+    ref = p;
+  }
+  parent.removeChild(el);
+  return created;
+}
+function applyBlock(root, rule) {
+  var _a, _b;
+  const open = rule.open;
+  if (!open) return;
+  const close = rule.close || open;
+  if (root.dataset.csBlock) return;
+  const parent = root.parentElement;
+  if (!parent) return;
+  const opener = matchOpener(root, rule);
+  if (!opener) return;
+  const openerLines = root.querySelector("br") || /\n/.test((_a = root.textContent) != null ? _a : "") ? splitElementByBr(root) : [root];
+  const openerEl = openerLines[0];
+  const siblings = Array.from(parent.children);
+  const lastIdx = siblings.indexOf(openerLines[openerLines.length - 1]);
+  const restEls = [
+    ...openerLines.slice(1),
+    ...siblings.slice(lastIdx + 1)
+  ];
+  let closerIdx = -1;
+  for (let i = 0; i < restEls.length; i++) {
+    if (restEls[i].dataset.csBlock) break;
+    if (lineText(restEls[i]) === close) {
+      closerIdx = i;
+      break;
+    }
+  }
+  if (closerIdx === -1) {
+    return;
+  }
+  const contentEls = restEls.slice(0, closerIdx);
+  const closerEl = restEls[closerIdx];
+  if (contentEls.length === 0) {
+  }
+  const doc = root.ownerDocument;
+  const wrapper = doc.createElement("div");
+  wrapper.className = blockRuleClasses(rule, opener.type);
+  wrapper.dataset.csBlock = rule.id;
+  openerEl.dataset.csBlock = "x";
+  closerEl.dataset.csBlock = "x";
+  for (const c of contentEls) c.dataset.csBlock = "x";
+  const css = ((_b = rule.css) != null ? _b : "").trim();
+  if (css) {
+    wrapper.setCssStyles(cssToRecord(css));
+  }
+  applyParams(wrapper, opener.params);
+  for (const c of contentEls) {
+    while (c.firstChild) {
+      wrapper.appendChild(c.firstChild);
+    }
+  }
+  parent.insertBefore(wrapper, openerEl);
+  parent.removeChild(openerEl);
+  for (const c of contentEls) {
+    parent.removeChild(c);
+  }
+  parent.removeChild(closerEl);
+}
+function applyCallout(root, rule) {
+  var _a;
+  const type = rule.open;
+  if (!type) {
+    return;
+  }
+  const targets = [];
+  if (root.matches(".callout")) {
+    targets.push(root);
+  }
+  root.querySelectorAll(".callout").forEach(
+    (n) => targets.push(n)
+  );
+  for (const el of targets) {
+    if (el.getAttribute("data-callout") !== type) {
+      continue;
+    }
+    const css = ((_a = rule.css) != null ? _a : "").trim();
+    if (css) {
+      el.setCssStyles(cssToRecord(css));
+    }
+    const extra = sanitizeClassName(rule.className);
+    if (extra) {
+      el.addClasses(extra.split(" "));
+    }
+  }
+}
+
+// src/syntaxIndex.ts
+var SyntaxIndex = class {
+  constructor() {
+    this.map = /* @__PURE__ */ new Map();
+  }
+  /** (Re)build the index entry for one file path. */
+  indexFile(path, content, rules) {
+    this.map.set(path, scanContent(content, rules));
+  }
+  removeFile(path) {
+    this.map.delete(path);
+  }
+  getForPath(path) {
+    var _a;
+    return (_a = this.map.get(path)) != null ? _a : [];
+  }
+  getAll() {
+    return Object.fromEntries(this.map);
+  }
+  size() {
+    return this.map.size;
+  }
+};
+function scanContent(content, rules) {
+  const out = [];
+  const lines = content.split(/\r?\n/);
+  for (const rule of rules) {
+    if (!rule.enabled || !rule.open) continue;
+    if (rule.kind === "inline") {
+      scanInline(lines, rule, out);
+    } else if (rule.kind === "callout") {
+      scanCallout(lines, rule, out);
+    } else {
+      scanBlock(lines, rule, out);
+    }
+  }
+  return out;
+}
+function scanInline(lines, rule, out) {
+  const head = rule.captureParams ? `${escapeRegExp(rule.open)}\\s*(\\{[^}]*\\})?\\s*([^\\n]*?)` : `${escapeRegExp(rule.open)}([^\\n]*?)`;
+  const re = new RegExp(head + escapeRegExp(rule.open), "g");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      const content = rule.captureParams ? m[2] : m[1];
+      if (!content) continue;
+      out.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        kind: "inline",
+        marker: rule.open,
+        params: rule.captureParams ? m[1] : void 0,
+        line: i + 1,
+        excerpt: content.slice(0, 80)
+      });
+    }
+  }
+}
+function scanBlock(lines, rule, out) {
+  const open = rule.open;
+  const close = rule.close || open;
+  let openLine = -1;
+  let type;
+  let params;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (openLine === -1) {
+      if (rule.kind === "fenced" ? trimmed.startsWith(open) : trimmed === open) {
+        openLine = i;
+        const tail = lines[i].slice(open.length);
+        if (rule.captureParams) {
+          const bs = tail.indexOf("{");
+          const be = tail.indexOf("}", bs);
+          if (bs >= 0 && be > bs) {
+            params = tail.slice(bs, be + 1);
+            type = rule.readType ? tail.slice(0, bs).trim() || void 0 : void 0;
+          } else {
+            type = rule.readType ? tail.trim() : void 0;
+          }
+        } else {
+          type = rule.readType ? tail.trim() : void 0;
+        }
+      }
+    } else if (trimmed === close) {
+      out.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        kind: rule.kind,
+        marker: rule.open,
+        type,
+        params,
+        line: openLine + 1,
+        excerpt: `${lines[openLine].trim()} \u2026 ${trimmed}`
+      });
+      openLine = -1;
+      type = void 0;
+      params = void 0;
+    }
+  }
+}
+function scanCallout(lines, rule, out) {
+  const re = /^>\s*\[!\s*([^\]\s]+)\s*\]/;
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(re);
+    if (m && m[1] === rule.open) {
+      out.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        kind: "callout",
+        marker: `> [!${rule.open}]`,
+        type: rule.open,
+        line: i + 1,
+        excerpt: lines[i].trim()
+      });
+    }
+  }
+}
+function buildCompanion(noteName, occ) {
+  const rows = occ.map(
+    (o) => `cs-rule:: ${o.ruleName}
+cs-kind:: ${o.kind}
+cs-line:: ${o.line}` + (o.type ? `
+cs-type:: ${o.type}` : "")
+  ).join("\n\n");
+  const body = [
+    "---",
+    "custom-syntax: true",
+    "---",
+    "",
+    `# Custom Syntax index \u2014 ${noteName}`,
+    "",
+    "> Generated by the Custom Syntax plugin. Each block below is a Dataview-readable",
+    "> inline field describing where a custom rule matched in the source note.",
+    "",
+    occ.length === 0 ? "_No custom-syntax matches found in this note._" : rows,
+    ""
+  ].join("\n");
+  return body;
 }
 
 // src/rulePanel.ts
@@ -1880,7 +2606,11 @@ var RulePanelView = class extends import_obsidian2.ItemView {
     const v = res.value;
     if (this.editing) {
       this.editing.name = v.name;
-      this.editing.delimiter = v.delimiter;
+      this.editing.kind = v.kind;
+      this.editing.open = v.open;
+      this.editing.close = v.close;
+      this.editing.readType = v.readType;
+      this.editing.captureParams = v.captureParams;
       this.editing.css = v.css;
       this.editing.className = v.className;
       this.editing.enabled = v.enabled;
@@ -1889,7 +2619,11 @@ var RulePanelView = class extends import_obsidian2.ItemView {
       this.plugin.settings.rules.push({
         id: newRuleId(),
         name: v.name,
-        delimiter: v.delimiter,
+        kind: v.kind,
+        open: v.open,
+        close: v.close,
+        readType: v.readType,
+        captureParams: v.captureParams,
         css: v.css,
         className: v.className,
         enabled: v.enabled,
@@ -1912,6 +2646,9 @@ var CustomSyntaxPlugin = class extends import_obsidian3.Plugin {
     this.editorExtension = [];
     this.ribbonEl = null;
     this.settingTab = null;
+    /** Own queryable index of where custom rules matched (no metadata-cache patch). */
+    this.syntaxIndex = new SyntaxIndex();
+    this.indexTimers = /* @__PURE__ */ new Map();
   }
   async onload() {
     await this.loadSettings();
@@ -1934,6 +2671,65 @@ var CustomSyntaxPlugin = class extends import_obsidian3.Plugin {
         applyRule(el, rule);
       }
     });
+    this.registerEvent(
+      this.app.vault.on("modify", (f) => this.scheduleIndex(f))
+    );
+    this.registerEvent(
+      this.app.vault.on("create", (f) => this.scheduleIndex(f))
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", (f) => {
+        if (f instanceof import_obsidian3.TFile) this.syntaxIndex.removeFile(f.path);
+      })
+    );
+    this.addCommand({
+      id: "write-companion",
+      name: "Generate syntax metadata companion",
+      callback: () => void this.writeCompanion()
+    });
+  }
+  /** Debounced re-index of a single markdown file (no whole-vault scan). */
+  scheduleIndex(file) {
+    if (!(file instanceof import_obsidian3.TFile) || file.extension !== "md") return;
+    const existing = this.indexTimers.get(file.path);
+    if (existing) window.clearTimeout(existing);
+    this.indexTimers.set(
+      file.path,
+      window.setTimeout(() => {
+        this.indexTimers.delete(file.path);
+        void this.app.vault.read(file).then((content) => {
+          this.syntaxIndex.indexFile(
+            file.path,
+            content,
+            this.settings.rules
+          );
+        });
+      }, 300)
+    );
+  }
+  /**
+   * Write (or update) a Dataview-readable companion file next to the active
+   * note. This is an opt-in bridge so other plugins (e.g. Dataview) can read
+   * where custom syntax matched — without patching Obsidian's metadata cache.
+   */
+  async writeCompanion() {
+    const file = this.app.workspace.getActiveFile();
+    if (!file || file.extension !== "md") {
+      new import_obsidian3.Notice("Open a Markdown note first.");
+      return;
+    }
+    const content = await this.app.vault.read(file);
+    const occ = scanContent(content, this.settings.rules);
+    const metaName = `${file.basename}.cs-meta.md`;
+    const metaPath = file.parent ? `${file.parent.path}/${metaName}` : metaName;
+    const body = buildCompanion(file.basename, occ);
+    const existing = this.app.vault.getAbstractFileByPath(metaPath);
+    if (existing instanceof import_obsidian3.TFile) {
+      await this.app.vault.modify(existing, body);
+    } else {
+      await this.app.vault.create(metaPath, body);
+    }
+    new import_obsidian3.Notice(`Wrote ${metaName}`);
   }
   onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_RULE_PANEL);
@@ -1941,7 +2737,11 @@ var CustomSyntaxPlugin = class extends import_obsidian3.Plugin {
   async loadSettings() {
     var _a;
     const data = await this.loadData();
-    this.settings = { language: "system", rules: [], showRibbon: true };
+    this.settings = {
+      language: "system",
+      rules: [],
+      showRibbon: true
+    };
     const lang = data == null ? void 0 : data.language;
     this.settings.language = lang === "en" || lang === "zh" || lang === "system" ? lang : "system";
     const rules = data == null ? void 0 : data.rules;

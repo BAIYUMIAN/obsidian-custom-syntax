@@ -191,7 +191,11 @@ export class RulePanelView extends ItemView {
 		const v = res.value;
 		if (this.editing) {
 			this.editing.name = v.name;
-			this.editing.delimiter = v.delimiter;
+			this.editing.kind = v.kind;
+			this.editing.open = v.open;
+			this.editing.close = v.close;
+			this.editing.readType = v.readType;
+			this.editing.captureParams = v.captureParams;
 			this.editing.css = v.css;
 			this.editing.className = v.className;
 			this.editing.enabled = v.enabled;
@@ -200,7 +204,11 @@ export class RulePanelView extends ItemView {
 			this.plugin.settings.rules.push({
 				id: newRuleId(),
 				name: v.name,
-				delimiter: v.delimiter,
+				kind: v.kind,
+				open: v.open,
+				close: v.close,
+				readType: v.readType,
+				captureParams: v.captureParams,
 				css: v.css,
 				className: v.className,
 				enabled: v.enabled,
