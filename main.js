@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => CustomSyntaxPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // src/editorExtension.ts
 var import_language3 = require("@codemirror/language");
@@ -759,7 +759,8 @@ padding: 1px 5px;`,
       className: "",
       enabled: true
     }
-  ]
+  ],
+  showRibbon: true
 };
 function newRuleId() {
   return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -877,6 +878,7 @@ function findCustomConflict(delim, rules, excludeId) {
 var STRINGS = {
   zh: {
     pluginName: "\u81EA\u5B9A\u4E49\u8BED\u6CD5",
+    language: "\u8BED\u8A00",
     addRule: "\u6DFB\u52A0\u89C4\u5219",
     followSystem: "\u8DDF\u968F\u7CFB\u7EDF",
     toggle: "\u542F\u7528\u6216\u7981\u7528",
@@ -916,10 +918,27 @@ padding: 1px 5px;`,
     conflictCustomCreate: "\u4E0E\u81EA\u5B9A\u4E49\u8BED\u6CD5\u300C{name}\u300D\u51B2\u7A81\uFF0C\u518D\u6B21\u786E\u8BA4\u5C06\u521B\u5EFA\u5E76\u7981\u7528",
     conflictCustomSave: "\u4E0E\u81EA\u5B9A\u4E49\u8BED\u6CD5\u300C{name}\u300D\u51B2\u7A81\uFF0C\u518D\u6B21\u786E\u8BA4\u5C06\u4FDD\u5B58\u5E76\u7981\u7528",
     conflictAnnotation: "\u4E0E\u300C{name}\u300D\u51B2\u7A81",
-    untitled: "\u672A\u547D\u540D"
+    untitled: "\u672A\u547D\u540D",
+    back: "\u8FD4\u56DE",
+    noRules: "\u8FD8\u6CA1\u6709\u89C4\u5219\uFF0C\u70B9\u51FB\u53F3\u4E0A\u89D2\u300C\u6DFB\u52A0\u89C4\u5219\u300D\u65B0\u5EFA\u4E00\u6761\u3002",
+    other: "\u5176\u4ED6",
+    exportGroup: "\u5BFC\u51FA",
+    toolbarIcon: "\u5DE5\u5177\u680F\u56FE\u6807",
+    toolbarIconDesc: "\u5728\u5DE6\u4FA7\u529F\u80FD\u680F\u663E\u793A\u4E00\u4E2A\u56FE\u6807\uFF0C\u70B9\u51FB\u5373\u53EF\u6253\u5F00\u89C4\u5219\u7BA1\u7406\u5668\u9762\u677F\u3002",
+    invokePanel: "\u5524\u8D77\u9762\u677F",
+    invokePanelDesc: "\u5728\u53F3\u4FA7\u8FB9\u680F\u6253\u5F00\u89C4\u5219\u7BA1\u7406\u5668\u3002",
+    openPanel: "\u6253\u5F00\u9762\u677F",
+    docs: "\u8BF4\u660E\u6587\u6863",
+    docsTitle: "\u81EA\u5B9A\u4E49\u8BED\u6CD5 - \u8BF4\u660E",
+    docsRepo: "\u5728 GitHub \u4E0A\u67E5\u770B",
+    docsOpen: "\u6253\u5F00",
+    close: "\u5173\u95ED",
+    languageSwitch: "\u5207\u6362\u8BED\u8A00",
+    openSettings: "\u8BBE\u7F6E"
   },
   en: {
     pluginName: "Custom Syntax",
+    language: "Language",
     addRule: "Add rule",
     followSystem: "Follow system",
     toggle: "Enable or disable",
@@ -959,7 +978,23 @@ padding: 1px 5px;`,
     conflictCustomCreate: 'Conflicts with custom syntax "{name}" \u2014 confirm again to create (disabled)',
     conflictCustomSave: 'Conflicts with custom syntax "{name}" \u2014 confirm again to save (disabled)',
     conflictAnnotation: 'Conflicts with "{name}"',
-    untitled: "Untitled"
+    untitled: "Untitled",
+    back: "Back",
+    noRules: 'No rules yet \u2014 click "Add rule" in the top right to create one.',
+    other: "Other",
+    exportGroup: "Export",
+    toolbarIcon: "Toolbar icon",
+    toolbarIconDesc: "Show an icon in the left ribbon that opens the rule manager panel.",
+    invokePanel: "Open panel",
+    invokePanelDesc: "Open the rule manager in the right sidebar.",
+    openPanel: "Open panel",
+    docs: "Documentation",
+    docsTitle: "Custom Syntax - Guide",
+    docsRepo: "View on GitHub",
+    docsOpen: "Open",
+    close: "Close",
+    languageSwitch: "Switch language",
+    openSettings: "Settings"
   }
 };
 function resolveLanguage(lang) {
@@ -1003,25 +1038,23 @@ var ConfirmModal = class extends import_obsidian.Modal {
     });
   }
 };
-var RuleModal = class extends import_obsidian.Modal {
-  constructor(app, plugin, rule, onDone) {
-    super(app);
+var RuleForm = class {
+  constructor(container, plugin, rule, onSubmit) {
     this.pendingCustomConflict = null;
     this.plugin = plugin;
     this.rule = rule;
-    this.onDone = onDone;
+    this.onSubmit = onSubmit;
+    this.build(container);
   }
-  onOpen() {
+  build(container) {
     var _a, _b;
     const t = stringsFor(this.plugin.settings.language);
-    this.titleEl.setText(this.rule ? t.editTitle : t.createTitle);
-    const { contentEl } = this;
-    new import_obsidian.Setting(contentEl).setName(t.ruleName).addText((text) => {
+    new import_obsidian.Setting(container).setName(t.ruleName).addText((text) => {
       var _a2, _b2;
       this.nameInput = text.inputEl;
       text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.name) != null ? _b2 : "").setPlaceholder(t.ruleNamePlaceholder);
     });
-    new import_obsidian.Setting(contentEl).setName(t.delimiter).setDesc(t.delimiterDesc).addText((text) => {
+    new import_obsidian.Setting(container).setName(t.delimiter).addText((text) => {
       var _a2, _b2;
       this.delimInput = text.inputEl;
       text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.delimiter) != null ? _b2 : "++").setPlaceholder("++");
@@ -1030,12 +1063,12 @@ var RuleModal = class extends import_obsidian.Modal {
         this.clearError();
       });
     });
-    new import_obsidian.Setting(contentEl).setName(t.className).setDesc(t.classNameDesc).addText((text) => {
+    new import_obsidian.Setting(container).setName(t.className).addText((text) => {
       var _a2, _b2;
       this.classInput = text.inputEl;
       text.setValue((_b2 = (_a2 = this.rule) == null ? void 0 : _a2.className) != null ? _b2 : "").setPlaceholder(t.classNamePlaceholder);
     });
-    const cssSetting = new import_obsidian.Setting(contentEl).setName(t.css).setDesc(t.cssDesc);
+    const cssSetting = new import_obsidian.Setting(container).setName(t.css);
     cssSetting.settingEl.addClass("custom-syntax-stacked");
     const cssRow = cssSetting.controlEl.createDiv({
       cls: "custom-syntax-css-row"
@@ -1043,12 +1076,6 @@ var RuleModal = class extends import_obsidian.Modal {
     const cssHost = cssRow.createDiv({
       cls: "custom-syntax-css-editor"
     });
-    const visualBtn = cssRow.createEl("button", {
-      text: t.visualEdit,
-      cls: "custom-syntax-visual-edit"
-    });
-    visualBtn.disabled = true;
-    visualBtn.title = t.visualEditHint;
     this.cssEditor = createCssEditor(
       cssHost,
       (_b = (_a = this.rule) == null ? void 0 : _a.css) != null ? _b : DEFAULT_SETTINGS.rules[0].css,
@@ -1058,15 +1085,7 @@ var RuleModal = class extends import_obsidian.Modal {
         onSubmit: () => this.onSubmit()
       }
     );
-    this.errorEl = contentEl.createDiv({ cls: "custom-syntax-error" });
-    const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
-    const cancelBtn = btnRow.createEl("button", { text: t.cancel });
-    cancelBtn.addEventListener("click", () => this.close());
-    const submitBtn = btnRow.createEl("button", {
-      text: this.rule ? t.save : t.create,
-      cls: "mod-cta"
-    });
-    submitBtn.addEventListener("click", () => this.onSubmit());
+    this.errorEl = container.createDiv({ cls: "custom-syntax-error" });
   }
   clearError() {
     this.errorEl.empty();
@@ -1077,7 +1096,11 @@ var RuleModal = class extends import_obsidian.Modal {
     this.errorEl.createSpan({ text: msg });
     this.errorEl.addClass("is-visible");
   }
-  onSubmit() {
+  /**
+   * Validates the current input. On success returns the resolved values; on
+   * failure shows the error in-place and returns `{ ok: false }`.
+   */
+  validate() {
     var _a;
     const t = stringsFor(this.plugin.settings.language);
     const lang = resolveLanguage(this.plugin.settings.language);
@@ -1087,14 +1110,14 @@ var RuleModal = class extends import_obsidian.Modal {
     const className = sanitizeClassName(this.classInput.value);
     if (!delimiter) {
       this.showError(t.delimiterRequired);
-      return;
+      return { ok: false };
     }
     const builtin = findBuiltinConflict(delimiter);
     if (builtin) {
       const nm = lang === "zh" ? builtin.zh : builtin.en;
       this.showError(t.conflictBuiltin.replace("{name}", nm));
       this.pendingCustomConflict = null;
-      return;
+      return { ok: false };
     }
     const custom = findCustomConflict(
       delimiter,
@@ -1104,51 +1127,36 @@ var RuleModal = class extends import_obsidian.Modal {
     if (custom) {
       const nm = custom.name || t.untitled;
       if (this.pendingCustomConflict && this.pendingCustomConflict.id === custom.id) {
-        this.finish(name, delimiter, css, className, false);
-        return;
+        return {
+          ok: true,
+          value: {
+            name: name || t.untitled,
+            delimiter,
+            css,
+            className,
+            enabled: false
+          }
+        };
       }
       this.pendingCustomConflict = custom;
       const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
       this.showError(msg.replace("{name}", nm));
-      return;
+      return { ok: false };
     }
-    this.finish(
-      name,
-      delimiter,
-      css,
-      className,
-      this.rule ? this.rule.enabled : true
-    );
-  }
-  finish(name, delimiter, css, className, enabled) {
-    const t = stringsFor(this.plugin.settings.language);
-    const finalName = name || t.untitled;
-    if (this.rule) {
-      this.rule.name = finalName;
-      this.rule.delimiter = delimiter;
-      this.rule.css = css;
-      this.rule.className = className;
-      this.rule.enabled = enabled;
-      this.rule.conflictWithId = null;
-    } else {
-      this.plugin.settings.rules.push({
-        id: newRuleId(),
-        name: finalName,
+    return {
+      ok: true,
+      value: {
+        name: name || t.untitled,
         delimiter,
         css,
         className,
-        enabled,
-        conflictWithId: null
-      });
-    }
-    void this.plugin.saveSettings();
-    this.close();
-    this.onDone();
+        enabled: this.rule ? this.rule.enabled : true
+      }
+    };
   }
-  onClose() {
+  destroy() {
     var _a;
     (_a = this.cssEditor) == null ? void 0 : _a.destroy();
-    this.contentEl.empty();
   }
 };
 var ExportModal = class extends import_obsidian.Modal {
@@ -1190,6 +1198,98 @@ var ExportModal = class extends import_obsidian.Modal {
     });
   }
 };
+async function toggleRuleEnabled(plugin, rule, enabled) {
+  rule.enabled = enabled;
+  rule.conflictWithId = null;
+  if (enabled) {
+    for (const other of plugin.settings.rules) {
+      if (other !== rule && other.enabled && delimitersConflict(rule.delimiter, other.delimiter)) {
+        other.enabled = false;
+        other.conflictWithId = rule.id;
+      }
+    }
+  }
+  await plugin.saveSettings();
+}
+async function deleteRule(plugin, rule) {
+  plugin.settings.rules = plugin.settings.rules.filter((r) => r !== rule);
+  for (const r of plugin.settings.rules) {
+    if (r.conflictWithId === rule.id) {
+      r.conflictWithId = null;
+    }
+  }
+  await plugin.saveSettings();
+}
+function renderRuleCard(containerEl, plugin, rule, onChanged, onEdit) {
+  const t = stringsFor(plugin.settings.language);
+  const card = containerEl.createDiv({ cls: "custom-syntax-rule-card" });
+  const row = card.createDiv({ cls: "custom-syntax-rule-row" });
+  const nameEl = row.createDiv({
+    cls: "custom-syntax-rule-name",
+    text: rule.name || t.untitled
+  });
+  nameEl.title = rule.delimiter;
+  const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
+  const editBtn = controls.createEl("button", { cls: "clickable-icon" });
+  editBtn.setAttribute("aria-label", t.edit);
+  (0, import_obsidian.setIcon)(editBtn, "pencil");
+  editBtn.addEventListener("click", () => onEdit(rule));
+  const delBtn = controls.createEl("button", { cls: "clickable-icon" });
+  delBtn.setAttribute("aria-label", t.delete);
+  (0, import_obsidian.setIcon)(delBtn, "trash");
+  delBtn.addEventListener("click", () => {
+    const name = rule.name || t.untitled;
+    new ConfirmModal(
+      plugin.app,
+      t.deleteConfirm.replace("{name}", name),
+      t.delete,
+      t.cancel,
+      () => {
+        void deleteRule(plugin, rule).then(onChanged);
+      }
+    ).open();
+  });
+  const toggle = controls.createDiv({
+    cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container"
+  });
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-checked", String(rule.enabled));
+  toggle.setAttribute("aria-label", t.toggle);
+  toggle.setAttribute("tabindex", "0");
+  toggle.addEventListener("click", () => {
+    const newVal = !rule.enabled;
+    toggle.toggleClass("is-enabled", newVal);
+    toggle.setAttribute("aria-checked", String(newVal));
+    void toggleRuleEnabled(plugin, rule, newVal).then(onChanged);
+  });
+  toggle.addEventListener("keydown", (ev) => {
+    if (ev.key === " " || ev.key === "Enter") {
+      ev.preventDefault();
+      toggle.click();
+    }
+  });
+  const extraClass = sanitizeClassName(rule.className);
+  if (extraClass) {
+    card.createDiv({
+      cls: "custom-syntax-rule-class",
+      text: `.${extraClass.split(" ").join(" .")}`
+    });
+  }
+  if (rule.conflictWithId) {
+    const other = plugin.settings.rules.find(
+      (r) => r.id === rule.conflictWithId
+    );
+    if (other) {
+      card.createDiv({
+        cls: "custom-syntax-rule-conflict",
+        text: t.conflictAnnotation.replace(
+          "{name}",
+          other.name || t.untitled
+        )
+      });
+    }
+  }
+}
 var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -1206,37 +1306,36 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
       cls: "custom-syntax-nav-version",
       text: `v${this.plugin.manifest.version}`
     });
-    const actions = nav.createDiv({ cls: "custom-syntax-nav-actions" });
-    const langSelect = actions.createEl("select");
-    langSelect.addClass("dropdown");
-    const options = [
-      ["system", t.followSystem],
-      ["zh", "\u4E2D\u6587"],
-      ["en", "English"]
-    ];
-    for (const [value, label] of options) {
-      const opt = langSelect.createEl("option");
-      opt.value = value;
-      opt.textContent = label;
-    }
-    langSelect.value = this.plugin.settings.language;
-    langSelect.addEventListener("change", () => {
-      this.plugin.settings.language = langSelect.value;
-      void this.plugin.saveSettings();
-      this.display();
+    const groupOther = containerEl.createDiv({
+      cls: "custom-syntax-settings-group"
     });
-    const addBtn = actions.createEl("button", {
-      text: t.addRule,
-      cls: "mod-cta"
+    new import_obsidian.Setting(groupOther).setName(t.other).setHeading();
+    new import_obsidian.Setting(groupOther).setName(t.language).addDropdown((dd) => {
+      dd.addOption("system", t.followSystem);
+      dd.addOption("zh", "\u7B80\u4F53\u4E2D\u6587");
+      dd.addOption("en", "English");
+      dd.setValue(this.plugin.settings.language);
+      dd.onChange(async (value) => {
+        this.plugin.settings.language = value;
+        await this.plugin.saveSettings();
+        this.display();
+      });
     });
-    addBtn.addEventListener("click", () => {
-      new RuleModal(this.app, this.plugin, null, () => this.display()).open();
+    new import_obsidian.Setting(groupOther).setName(t.toolbarIcon).setDesc(t.toolbarIconDesc).addToggle((tg) => {
+      tg.setValue(this.plugin.settings.showRibbon);
+      tg.onChange(async (value) => {
+        this.plugin.settings.showRibbon = value;
+        await this.plugin.saveSettings();
+      });
     });
-    const list = containerEl.createDiv({ cls: "custom-syntax-rules" });
-    this.plugin.settings.rules.forEach((rule) => {
-      this.renderRuleCard(list, rule);
+    new import_obsidian.Setting(groupOther).setName(t.invokePanel).setDesc(t.invokePanelDesc).addButton(
+      (btn) => btn.setButtonText(t.openPanel).setCta().onClick(() => this.plugin.activateRulePanel())
+    );
+    const groupExport = containerEl.createDiv({
+      cls: "custom-syntax-settings-group"
     });
-    new import_obsidian.Setting(containerEl).setName(t.exportName).setDesc(t.exportDesc).addButton(
+    new import_obsidian.Setting(groupExport).setName(t.exportGroup).setHeading();
+    new import_obsidian.Setting(groupExport).setName(t.exportName).setDesc(t.exportDesc).addButton(
       (btn) => btn.setButtonText(t.exportBtn).setCta().onClick(() => {
         new ExportModal(
           this.app,
@@ -1248,104 +1347,163 @@ var CustomSyntaxSettingTab = class extends import_obsidian.PluginSettingTab {
         ).open();
       })
     );
+    new import_obsidian.Setting(groupExport).setName(t.docs).addButton(
+      (btn) => btn.setButtonText(t.docsOpen).onClick(() => {
+        new DocumentationModal(this.app, this.plugin).open();
+      })
+    );
   }
-  renderRuleCard(containerEl, rule) {
+};
+var REPO_URL = "https://github.com/BAIYUMIAN/obsidian-custom-syntax";
+var DocumentationModal = class extends import_obsidian.Modal {
+  constructor(app, plugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("custom-syntax-doc");
     const t = stringsFor(this.plugin.settings.language);
-    const card = containerEl.createDiv({ cls: "custom-syntax-rule-card" });
-    const row = card.createDiv({ cls: "custom-syntax-rule-row" });
-    const nameEl = row.createDiv({
-      cls: "custom-syntax-rule-name",
-      text: rule.name || t.untitled
+    const lang = resolveLanguage(this.plugin.settings.language);
+    const nav = contentEl.createDiv({ cls: "custom-syntax-doc-nav" });
+    const center = nav.createDiv({ cls: "custom-syntax-doc-nav-center" });
+    center.createDiv({
+      cls: "custom-syntax-doc-nav-title",
+      text: t.docsTitle
     });
-    nameEl.title = rule.delimiter;
-    const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
-    const editBtn = controls.createEl("button", { cls: "clickable-icon" });
-    editBtn.setAttribute("aria-label", t.edit);
-    (0, import_obsidian.setIcon)(editBtn, "pencil");
-    editBtn.addEventListener("click", () => {
-      new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
+    const repoBtn = center.createEl("button", {
+      cls: "clickable-icon",
+      attr: { "aria-label": t.docsRepo }
     });
-    const delBtn = controls.createEl("button", { cls: "clickable-icon" });
-    delBtn.setAttribute("aria-label", t.delete);
-    (0, import_obsidian.setIcon)(delBtn, "trash");
-    delBtn.addEventListener("click", () => {
-      const name = rule.name || t.untitled;
-      new ConfirmModal(
-        this.app,
-        t.deleteConfirm.replace("{name}", name),
-        t.delete,
-        t.cancel,
-        () => {
-          void this.deleteRule(rule);
-        }
-      ).open();
+    (0, import_obsidian.setIcon)(repoBtn, "external-link");
+    repoBtn.addEventListener("click", () => {
+      window.open(REPO_URL, "_blank");
     });
-    const toggle = controls.createDiv({
-      cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container"
+    const closeBtn = nav.createEl("button", {
+      cls: "clickable-icon",
+      attr: { "aria-label": t.close }
     });
-    toggle.setAttribute("role", "switch");
-    toggle.setAttribute("aria-checked", String(rule.enabled));
-    toggle.setAttribute("aria-label", t.toggle);
-    toggle.setAttribute("tabindex", "0");
-    toggle.addEventListener("click", () => {
-      const newVal = !rule.enabled;
-      toggle.toggleClass("is-enabled", newVal);
-      toggle.setAttribute("aria-checked", String(newVal));
-      void this.toggleRule(rule, newVal);
-      window.setTimeout(() => this.display(), 180);
-    });
-    toggle.addEventListener("keydown", (ev) => {
-      if (ev.key === " " || ev.key === "Enter") {
-        ev.preventDefault();
-        toggle.click();
+    (0, import_obsidian.setIcon)(closeBtn, "x");
+    closeBtn.addEventListener("click", () => this.close());
+    const body = contentEl.createDiv({ cls: "custom-syntax-doc-body" });
+    const sections = lang === "zh" ? [
+      {
+        h: "\u6DFB\u52A0\u89C4\u5219",
+        p: [
+          "\u70B9\u51FB\u53F3\u4FA7\u8FB9\u680F\u89C4\u5219\u7BA1\u7406\u5668\u91CC\u7684\u300C\u6DFB\u52A0\u89C4\u5219\u300D\uFF0C\u6216\u76F4\u63A5\u70B9\u8BBE\u7F6E\u4E2D\u7684\u300C\u6253\u5F00\u9762\u677F\u300D\u3002",
+          "\u586B\u5199\u89C4\u5219\u540D\u4E0E\u5206\u9694\u7B26\uFF08\u4F8B\u5982 ++\uFF09\uFF0C\u7136\u540E\u5728\u300C\u6837\u5F0F\u58F0\u660E\u300D\u91CC\u53EA\u5199 CSS \u82B1\u62EC\u53F7\u91CC\u7684\u90E8\u5206\uFF1A"
+        ],
+        code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;"
+      },
+      {
+        h: "\u7ACB\u5373\u751F\u6548",
+        p: ["\u5728\u7B14\u8BB0\u91CC\u8F93\u5165 ++\u6587\u5B57++ \u5373\u53EF\u770B\u5230\u6548\u679C\u3002"]
+      },
+      {
+        h: "\u7C7B\u6837\u5F0F\uFF08\u53EF\u9009\uFF09",
+        p: [
+          "\u5728\u300C\u7C7B\u540D\u300D\u91CC\u586B\u4E00\u4E2A\u6216\u591A\u4E2A CSS \u7C7B\u540D\uFF08\u7A7A\u683C\u5206\u9694\uFF09\u3002\u5F53\u300C\u6837\u5F0F\u58F0\u660E\u300D\u7559\u7A7A\u65F6\uFF0C\u6837\u5F0F\u5B8C\u5168\u7531\u4F60\u81EA\u5DF1\u7684 CSS \u7247\u6BB5\u4E2D\u4E3A\u8FD9\u4E2A\u7C7B\u540D\u5199\u7684\u89C4\u5219\u51B3\u5B9A\uFF0C\u4ECE\u800C\u80FD\u88AB\u4E3B\u9898\u590D\u7528\u4E0E\u8986\u76D6\u3002"
+        ]
+      },
+      {
+        h: "\u5BFC\u51FA CSS \u7247\u6BB5",
+        p: [
+          "\u5728\u8BBE\u7F6E\u300C\u5BFC\u51FA\u300D\u7EC4\u4E2D\u70B9\u51FB\u300C\u5BFC\u51FA CSS \u7247\u6BB5\u300D\uFF0C\u628A\u73B0\u6709\u89C4\u5219\u7684\u6837\u5F0F\u5BFC\u51FA\u4E3A .css \u6587\u4EF6\uFF0C\u653E\u5165\u4F60\u7684\u7247\u6BB5\u6587\u4EF6\u5939\u5373\u53EF\u957F\u671F\u590D\u7528\u3002"
+        ]
+      },
+      {
+        h: "\u9605\u8BFB\u6A21\u5F0F",
+        p: [
+          "\u5206\u9694\u7B26\u5185\u4E3A\u7A7A\uFF08\u4F8B\u5982 ++++\uFF09\u65F6\uFF0C\u4F1A\u5F53\u4F5C\u666E\u901A\u6587\u672C\uFF0C\u4E0D\u505A\u4EFB\u4F55\u6E32\u67D3\u2014\u2014\u8FD9\u548C\u539F\u751F == \u5904\u7406 ==== \u7684\u65B9\u5F0F\u4E00\u81F4\u3002"
+        ]
       }
-    });
-    const extraClass = sanitizeClassName(rule.className);
-    if (extraClass) {
-      card.createDiv({
-        cls: "custom-syntax-rule-class",
-        text: `.${extraClass.split(" ").join(" .")}`
-      });
-    }
-    if (rule.conflictWithId) {
-      const other = this.plugin.settings.rules.find(
-        (r) => r.id === rule.conflictWithId
-      );
-      if (other) {
-        card.createDiv({
-          cls: "custom-syntax-rule-conflict",
-          text: t.conflictAnnotation.replace(
-            "{name}",
-            other.name || t.untitled
-          )
+    ] : [
+      {
+        h: "Add a rule",
+        p: [
+          'Click "Add rule" in the right-sidebar rule manager, or click "Open panel" in the settings.',
+          "Give the rule a name and a delimiter (e.g. ++), then write only what goes inside the CSS curly braces:"
+        ],
+        code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;"
+      },
+      {
+        h: "Takes effect immediately",
+        p: ["Type ++text++ in a note to see it styled."]
+      },
+      {
+        h: "Class-based styling (optional)",
+        p: [
+          'Fill in one or more CSS class names (space-separated) under "Class name". When the declarations are left empty, styling comes entirely from the rule you write for that class in your own CSS snippet, so it can be reused and overridden by themes.'
+        ]
+      },
+      {
+        h: "Export as CSS snippet",
+        p: [
+          `Under the settings "Export" group, click "Export CSS snippet" to export your rules' styles as a .css file you can drop into your snippets folder for reuse.`
+        ]
+      },
+      {
+        h: "Reading view",
+        p: [
+          "A delimiter with nothing inside (e.g. ++++) is left as plain text and not rendered \u2014 just like how native == leaves ==== alone."
+        ]
+      }
+    ];
+    for (const s of sections) {
+      body.createEl("h3", { cls: "custom-syntax-doc-h", text: s.h });
+      for (const para of s.p) {
+        body.createEl("p", { cls: "custom-syntax-doc-p", text: para });
+      }
+      if (s.code !== void 0) {
+        body.createEl("pre", {
+          cls: "custom-syntax-doc-code",
+          text: s.code
         });
       }
     }
   }
-  async toggleRule(rule, enabled) {
-    rule.enabled = enabled;
-    rule.conflictWithId = null;
-    if (enabled) {
-      for (const other of this.plugin.settings.rules) {
-        if (other !== rule && other.enabled && delimitersConflict(rule.delimiter, other.delimiter)) {
-          other.enabled = false;
-          other.conflictWithId = rule.id;
-        }
-      }
-    }
-    await this.plugin.saveSettings();
+  onClose() {
+    this.contentEl.empty();
   }
-  async deleteRule(rule) {
-    this.plugin.settings.rules = this.plugin.settings.rules.filter(
-      (r) => r !== rule
-    );
-    for (const r of this.plugin.settings.rules) {
-      if (r.conflictWithId === rule.id) {
-        r.conflictWithId = null;
+};
+var LanguageModal = class extends import_obsidian.Modal {
+  constructor(app, plugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("custom-syntax-lang");
+    const t = stringsFor(this.plugin.settings.language);
+    const nav = contentEl.createDiv({ cls: "custom-syntax-lang-nav" });
+    nav.createDiv({
+      cls: "custom-syntax-lang-nav-title",
+      text: t.languageSwitch
+    });
+    const body = contentEl.createDiv({ cls: "custom-syntax-lang-body" });
+    const options = [
+      { value: "system", label: t.followSystem },
+      { value: "zh", label: "\u7B80\u4F53\u4E2D\u6587" },
+      { value: "en", label: "English" }
+    ];
+    for (const opt of options) {
+      const row = body.createDiv({ cls: "custom-syntax-lang-row" });
+      row.createSpan({ text: opt.label });
+      const radio = row.createSpan({ cls: "custom-syntax-lang-radio" });
+      if (this.plugin.settings.language === opt.value) {
+        radio.addClass("is-selected");
       }
+      row.addEventListener("click", () => this.select(opt.value));
     }
-    await this.plugin.saveSettings();
-    this.display();
+  }
+  select(value) {
+    this.plugin.settings.language = value;
+    void this.plugin.saveSettings().then(() => this.close());
+  }
+  onClose() {
+    this.contentEl.empty();
   }
 };
 
@@ -1569,15 +1727,206 @@ function applyRule(root, rule) {
   }
 }
 
+// src/rulePanel.ts
+var import_obsidian2 = require("obsidian");
+var VIEW_TYPE_RULE_PANEL = "custom-syntax-rule-panel";
+var RulePanelView = class extends import_obsidian2.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.mode = "list";
+    this.editing = null;
+    this.form = null;
+    this.plugin = plugin;
+  }
+  getViewType() {
+    return VIEW_TYPE_RULE_PANEL;
+  }
+  getDisplayText() {
+    return stringsFor(this.plugin.settings.language).pluginName;
+  }
+  getIcon() {
+    return "braces";
+  }
+  async onOpen() {
+    this.rebuild();
+  }
+  async onClose() {
+    var _a;
+    (_a = this.form) == null ? void 0 : _a.destroy();
+    this.form = null;
+  }
+  /** Rebuild the visible page from the current `mode`. */
+  rebuild() {
+    if (this.mode === "editor" && this.form) {
+      return;
+    }
+    const root = this.contentEl;
+    root.empty();
+    root.addClass("custom-syntax-panel");
+    const t = stringsFor(this.plugin.settings.language);
+    if (this.mode === "list") {
+      this.renderList(root, t);
+    } else {
+      this.renderEditor(root, t);
+    }
+  }
+  renderList(root, t) {
+    const nav = root.createDiv({ cls: "custom-syntax-panel-nav" });
+    const title = nav.createDiv({ cls: "custom-syntax-panel-nav-title" });
+    title.createSpan({ text: t.pluginName });
+    title.createSpan({
+      cls: "custom-syntax-nav-version",
+      text: `v${this.plugin.manifest.version}`
+    });
+    const newBtn = nav.createEl("button", {
+      text: t.addRule,
+      cls: "mod-cta"
+    });
+    newBtn.addEventListener("click", () => this.openEditor(null));
+    const body = root.createDiv({
+      cls: "custom-syntax-panel-body custom-syntax-rules"
+    });
+    if (this.plugin.settings.rules.length === 0) {
+      body.createDiv({ cls: "custom-syntax-empty", text: t.noRules });
+    } else {
+      this.plugin.settings.rules.forEach((rule) => {
+        renderRuleCard(
+          body,
+          this.plugin,
+          rule,
+          () => this.rebuild(),
+          (r) => this.openEditor(r)
+        );
+      });
+    }
+    const footer = root.createDiv({
+      cls: "custom-syntax-panel-footer custom-syntax-panel-footer--main"
+    });
+    const langBtn = footer.createEl("button", {
+      cls: "clickable-icon",
+      attr: { "aria-label": t.languageSwitch }
+    });
+    (0, import_obsidian2.setIcon)(langBtn, "languages");
+    langBtn.addEventListener("click", () => {
+      new LanguageModal(this.app, this.plugin).open();
+    });
+    const settingsBtn = footer.createEl("button", {
+      cls: "clickable-icon",
+      attr: { "aria-label": t.openSettings }
+    });
+    (0, import_obsidian2.setIcon)(settingsBtn, "settings");
+    settingsBtn.addEventListener("click", () => {
+      void this.plugin.openPluginSettings();
+    });
+  }
+  renderEditor(root, t) {
+    const nav = root.createDiv({
+      cls: "custom-syntax-panel-nav is-editor"
+    });
+    const back = nav.createEl("button", {
+      cls: "clickable-icon",
+      attr: { "aria-label": t.back }
+    });
+    (0, import_obsidian2.setIcon)(back, "chevron-left");
+    back.addEventListener("click", () => this.closeEditor());
+    nav.createDiv({
+      cls: "custom-syntax-panel-nav-title",
+      text: this.editing ? t.editTitle : t.createTitle
+    });
+    const body = root.createDiv({ cls: "custom-syntax-panel-body" });
+    this.form = new RuleForm(
+      body,
+      this.plugin,
+      this.editing,
+      () => this.submit()
+    );
+    const footer = root.createDiv({ cls: "custom-syntax-panel-footer" });
+    const visBtn = footer.createEl("button", {
+      text: t.visualEdit,
+      cls: "custom-syntax-visual-edit"
+    });
+    visBtn.disabled = true;
+    visBtn.title = t.visualEditHint;
+    const actions = footer.createDiv({
+      cls: "custom-syntax-panel-footer-right"
+    });
+    const cancel = actions.createEl("button", { text: t.cancel });
+    cancel.addEventListener("click", () => this.closeEditor());
+    const submit = actions.createEl("button", {
+      text: this.editing ? t.save : t.create,
+      cls: "mod-cta"
+    });
+    submit.addEventListener("click", () => this.submit());
+  }
+  openEditor(rule) {
+    this.editing = rule;
+    this.mode = "editor";
+    this.rebuild();
+  }
+  closeEditor() {
+    var _a;
+    this.mode = "list";
+    this.editing = null;
+    (_a = this.form) == null ? void 0 : _a.destroy();
+    this.form = null;
+    this.rebuild();
+  }
+  async submit() {
+    var _a, _b;
+    const res = (_a = this.form) == null ? void 0 : _a.validate();
+    if (!res || !res.ok) {
+      return;
+    }
+    const v = res.value;
+    if (this.editing) {
+      this.editing.name = v.name;
+      this.editing.delimiter = v.delimiter;
+      this.editing.css = v.css;
+      this.editing.className = v.className;
+      this.editing.enabled = v.enabled;
+      this.editing.conflictWithId = null;
+    } else {
+      this.plugin.settings.rules.push({
+        id: newRuleId(),
+        name: v.name,
+        delimiter: v.delimiter,
+        css: v.css,
+        className: v.className,
+        enabled: v.enabled,
+        conflictWithId: null
+      });
+    }
+    this.mode = "list";
+    this.editing = null;
+    (_b = this.form) == null ? void 0 : _b.destroy();
+    this.form = null;
+    await this.plugin.saveSettings();
+    this.rebuild();
+  }
+};
+
 // src/main.ts
-var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
+var CustomSyntaxPlugin = class extends import_obsidian3.Plugin {
   constructor() {
     super(...arguments);
     this.editorExtension = [];
+    this.ribbonEl = null;
+    this.settingTab = null;
   }
   async onload() {
     await this.loadSettings();
-    this.addSettingTab(new CustomSyntaxSettingTab(this.app, this));
+    this.settingTab = new CustomSyntaxSettingTab(this.app, this);
+    this.addSettingTab(this.settingTab);
+    this.registerView(
+      VIEW_TYPE_RULE_PANEL,
+      (leaf) => new RulePanelView(leaf, this)
+    );
+    this.ribbonEl = this.addRibbonIcon(
+      "braces",
+      stringsFor(this.settings.language).pluginName,
+      () => this.activateRulePanel()
+    );
+    this.updateRibbonVisibility();
     this.editorExtension.push(createEditorExtension(() => this.settings.rules));
     this.registerEditorExtension(this.editorExtension);
     this.registerMarkdownPostProcessor((el) => {
@@ -1587,10 +1936,12 @@ var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
     });
   }
   onunload() {
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_RULE_PANEL);
   }
   async loadSettings() {
+    var _a;
     const data = await this.loadData();
-    this.settings = { language: "system", rules: [] };
+    this.settings = { language: "system", rules: [], showRibbon: true };
     const lang = data == null ? void 0 : data.language;
     this.settings.language = lang === "en" || lang === "zh" || lang === "system" ? lang : "system";
     const rules = data == null ? void 0 : data.rules;
@@ -1599,16 +1950,40 @@ var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
     } else {
       this.settings.rules = DEFAULT_SETTINGS.rules.map((r) => ({ ...r }));
     }
+    this.settings.showRibbon = (_a = data == null ? void 0 : data.showRibbon) != null ? _a : true;
   }
   async saveSettings() {
     await this.saveData(this.settings);
     this.refresh();
   }
   refresh() {
+    var _a;
     this.editorExtension.length = 0;
     this.editorExtension.push(createEditorExtension(() => this.settings.rules));
     this.app.workspace.updateOptions();
     this.rerenderPreviews();
+    this.notifyRulePanel();
+    const appSetting = this.app.setting;
+    if ((appSetting == null ? void 0 : appSetting.activeTab) === this.settingTab) {
+      (_a = this.settingTab) == null ? void 0 : _a.display();
+    }
+    this.updateRibbon();
+  }
+  /** Open this plugin's page in Obsidian's native settings. */
+  async openPluginSettings() {
+    const appSetting = this.app.setting;
+    if (!appSetting) return;
+    appSetting.open();
+    await new Promise((r) => setTimeout(r, 0));
+    appSetting.openTabById(this.manifest.id);
+  }
+  /** Keep the ribbon icon's tooltip in sync with the active language. */
+  updateRibbon() {
+    if (this.ribbonEl) {
+      const name = stringsFor(this.settings.language).pluginName;
+      this.ribbonEl.setAttribute("aria-label", name);
+      this.ribbonEl.title = name;
+    }
   }
   /**
    * `updateOptions()` only refreshes editors. Reading view content is
@@ -1618,9 +1993,45 @@ var CustomSyntaxPlugin = class extends import_obsidian2.Plugin {
   rerenderPreviews() {
     this.app.workspace.iterateAllLeaves((leaf) => {
       const view = leaf.view;
-      if (view instanceof import_obsidian2.MarkdownView && view.previewMode) {
+      if (view instanceof import_obsidian3.MarkdownView && view.previewMode) {
         view.previewMode.rerender(true);
       }
     });
+  }
+  /** Rebuild the rule-manager panel if it is currently open. */
+  notifyRulePanel() {
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_RULE_PANEL).forEach((leaf) => {
+      if (leaf.view instanceof RulePanelView) {
+        leaf.view.rebuild();
+      }
+    });
+  }
+  /** Open (or reveal) the rule-manager panel in the right sidebar. */
+  activateRulePanel() {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_RULE_PANEL);
+    let leaf = existing[0];
+    if (!leaf) {
+      const right = workspace.getRightLeaf(false);
+      if (right) {
+        leaf = right;
+        leaf.setViewState({
+          type: VIEW_TYPE_RULE_PANEL,
+          active: true
+        });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+  /** Show or hide the left-ribbon icon based on `settings.showRibbon`. */
+  updateRibbonVisibility() {
+    if (this.ribbonEl) {
+      this.ribbonEl.toggleClass(
+        "custom-syntax-ribbon-hidden",
+        !this.settings.showRibbon
+      );
+    }
   }
 };

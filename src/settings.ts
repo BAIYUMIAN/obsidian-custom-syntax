@@ -27,6 +27,8 @@ export interface SyntaxRule {
 export interface CustomSyntaxSettings {
 	language: Language;
 	rules: SyntaxRule[];
+	/** Whether the left-ribbon icon that opens the rule panel is shown. */
+	showRibbon: boolean;
 }
 
 export const DEFAULT_SETTINGS: CustomSyntaxSettings = {
@@ -35,14 +37,15 @@ export const DEFAULT_SETTINGS: CustomSyntaxSettings = {
 		{
 			id: "rounded-box",
 			name: "圆角边框",
-		delimiter: "++",
-		css: `border: 1px solid var(--interactive-accent);
+			delimiter: "++",
+			css: `border: 1px solid var(--interactive-accent);
 border-radius: 6px;
 padding: 1px 5px;`,
-		className: "",
-		enabled: true,
+			className: "",
+			enabled: true,
 		},
 	],
+	showRibbon: true,
 };
 
 export function newRuleId(): string {
@@ -202,6 +205,7 @@ export function findCustomConflict(
 
 interface UIStrings {
 	pluginName: string;
+	language: string;
 	addRule: string;
 	followSystem: string;
 	toggle: string;
@@ -240,11 +244,28 @@ interface UIStrings {
 	conflictCustomSave: string;
 	conflictAnnotation: string;
 	untitled: string;
+	back: string;
+	noRules: string;
+	other: string;
+	exportGroup: string;
+	toolbarIcon: string;
+	toolbarIconDesc: string;
+	invokePanel: string;
+	invokePanelDesc: string;
+	openPanel: string;
+	docs: string;
+	docsTitle: string;
+	docsRepo: string;
+	docsOpen: string;
+	close: string;
+	languageSwitch: string;
+	openSettings: string;
 }
 
 const STRINGS: Record<ResolvedLanguage, UIStrings> = {
 	zh: {
 		pluginName: "自定义语法",
+		language: "语言",
 		addRule: "添加规则",
 		followSystem: "跟随系统",
 		toggle: "启用或禁用",
@@ -288,15 +309,32 @@ padding: 1px 5px;`,
 		conflictCustomSave: "与自定义语法「{name}」冲突，再次确认将保存并禁用",
 		conflictAnnotation: "与「{name}」冲突",
 		untitled: "未命名",
+		back: "返回",
+		noRules: "还没有规则，点击右上角「添加规则」新建一条。",
+		other: "其他",
+		exportGroup: "导出",
+		toolbarIcon: "工具栏图标",
+		toolbarIconDesc: "在左侧功能栏显示一个图标，点击即可打开规则管理器面板。",
+		invokePanel: "唤起面板",
+		invokePanelDesc: "在右侧边栏打开规则管理器。",
+		openPanel: "打开面板",
+		docs: "说明文档",
+		docsTitle: "自定义语法 - 说明",
+		docsRepo: "在 GitHub 上查看",
+		docsOpen: "打开",
+		close: "关闭",
+		languageSwitch: "切换语言",
+		openSettings: "设置",
 	},
 	en: {
 		pluginName: "Custom Syntax",
+		language: "Language",
 		addRule: "Add rule",
 		followSystem: "Follow system",
 		toggle: "Enable or disable",
 		edit: "Edit",
 		delete: "Delete",
-		deleteConfirm: "Delete rule \"{name}\"?",
+		deleteConfirm: 'Delete rule "{name}"?',
 		createTitle: "New rule",
 		editTitle: "Edit rule",
 		ruleName: "Rule name",
@@ -330,13 +368,31 @@ padding: 1px 5px;`,
 		create: "Create",
 		save: "Save",
 		delimiterRequired: "Delimiter is required",
-		conflictBuiltin: "Conflicts with built-in Markdown syntax \"{name}\"",
+		conflictBuiltin: 'Conflicts with built-in Markdown syntax "{name}"',
 		conflictCustomCreate:
-			"Conflicts with custom syntax \"{name}\" — confirm again to create (disabled)",
+			'Conflicts with custom syntax "{name}" — confirm again to create (disabled)',
 		conflictCustomSave:
-			"Conflicts with custom syntax \"{name}\" — confirm again to save (disabled)",
-		conflictAnnotation: "Conflicts with \"{name}\"",
+			'Conflicts with custom syntax "{name}" — confirm again to save (disabled)',
+		conflictAnnotation: 'Conflicts with "{name}"',
 		untitled: "Untitled",
+		back: "Back",
+		noRules:
+			'No rules yet — click "Add rule" in the top right to create one.',
+		other: "Other",
+		exportGroup: "Export",
+		toolbarIcon: "Toolbar icon",
+		toolbarIconDesc:
+			"Show an icon in the left ribbon that opens the rule manager panel.",
+		invokePanel: "Open panel",
+		invokePanelDesc: "Open the rule manager in the right sidebar.",
+		openPanel: "Open panel",
+		docs: "Documentation",
+		docsTitle: "Custom Syntax - Guide",
+		docsRepo: "View on GitHub",
+		docsOpen: "Open",
+		close: "Close",
+		languageSwitch: "Switch language",
+		openSettings: "Settings",
 	},
 };
 
@@ -357,7 +413,7 @@ export function stringsFor(lang: Language): UIStrings {
 	return getStrings(resolveLanguage(lang));
 }
 
-class ConfirmModal extends Modal {
+export class ConfirmModal extends Modal {
 	private message: string;
 	private confirmLabel: string;
 	private cancelLabel: string;
@@ -399,10 +455,24 @@ class ConfirmModal extends Modal {
 	}
 }
 
-class RuleModal extends Modal {
-	plugin: CustomSyntaxPlugin;
-	rule: SyntaxRule | null;
-	onDone: () => void;
+/** Result of {@link RuleForm.validate}; `ok` is false when there is an error. */
+export interface RuleFormValue {
+	name: string;
+	delimiter: string;
+	css: string;
+	className: string;
+	enabled: boolean;
+}
+
+/**
+ * The create/edit form, shared by the rule manager panel. It only builds the
+ * fields and validates input; applying the result to the settings is left to
+ * the caller (so the same form works inline in the panel).
+ */
+export class RuleForm {
+	private plugin: CustomSyntaxPlugin;
+	private rule: SyntaxRule | null;
+	private onSubmit: () => void;
 
 	private nameInput!: HTMLInputElement;
 	private delimInput!: HTMLInputElement;
@@ -412,32 +482,29 @@ class RuleModal extends Modal {
 	private pendingCustomConflict: SyntaxRule | null = null;
 
 	constructor(
-		app: App,
+		container: HTMLElement,
 		plugin: CustomSyntaxPlugin,
 		rule: SyntaxRule | null,
-		onDone: () => void
+		onSubmit: () => void
 	) {
-		super(app);
 		this.plugin = plugin;
 		this.rule = rule;
-		this.onDone = onDone;
+		this.onSubmit = onSubmit;
+		this.build(container);
 	}
 
-	onOpen(): void {
+	private build(container: HTMLElement): void {
 		const t = stringsFor(this.plugin.settings.language);
-		this.titleEl.setText(this.rule ? t.editTitle : t.createTitle);
-		const { contentEl } = this;
 
-		new Setting(contentEl).setName(t.ruleName).addText((text) => {
+		new Setting(container).setName(t.ruleName).addText((text) => {
 			this.nameInput = text.inputEl;
 			text
 				.setValue(this.rule?.name ?? "")
 				.setPlaceholder(t.ruleNamePlaceholder);
 		});
 
-		new Setting(contentEl)
+		new Setting(container)
 			.setName(t.delimiter)
-			.setDesc(t.delimiterDesc)
 			.addText((text) => {
 				this.delimInput = text.inputEl;
 				text.setValue(this.rule?.delimiter ?? "++").setPlaceholder("++");
@@ -447,9 +514,8 @@ class RuleModal extends Modal {
 				});
 			});
 
-		new Setting(contentEl)
+		new Setting(container)
 			.setName(t.className)
-			.setDesc(t.classNameDesc)
 			.addText((text) => {
 				this.classInput = text.inputEl;
 				text
@@ -459,23 +525,16 @@ class RuleModal extends Modal {
 
 		// The declarations editor gets its own row, full width, under its
 		// label — a side-by-side layout leaves far too little room for it.
-		const cssSetting = new Setting(contentEl)
-			.setName(t.css)
-			.setDesc(t.cssDesc);
+		const cssSetting = new Setting(container).setName(t.css);
 		cssSetting.settingEl.addClass("custom-syntax-stacked");
-		// Editor + visual-edit button share one row; button sits on the right.
+		// Inside the panel the (disabled) "Visual editor" button lives in the
+		// fixed footer, so the row only hosts the editor itself.
 		const cssRow = cssSetting.controlEl.createDiv({
 			cls: "custom-syntax-css-row",
 		});
 		const cssHost = cssRow.createDiv({
 			cls: "custom-syntax-css-editor",
 		});
-		const visualBtn = cssRow.createEl("button", {
-			text: t.visualEdit,
-			cls: "custom-syntax-visual-edit",
-		});
-		visualBtn.disabled = true;
-		visualBtn.title = t.visualEditHint;
 		this.cssEditor = createCssEditor(
 			cssHost,
 			this.rule?.css ?? DEFAULT_SETTINGS.rules[0].css,
@@ -486,17 +545,7 @@ class RuleModal extends Modal {
 			}
 		);
 
-		this.errorEl = contentEl.createDiv({ cls: "custom-syntax-error" });
-
-		const btnRow = contentEl.createDiv({ cls: "custom-syntax-modal-actions" });
-		const cancelBtn = btnRow.createEl("button", { text: t.cancel });
-		cancelBtn.addEventListener("click", () => this.close());
-
-		const submitBtn = btnRow.createEl("button", {
-			text: this.rule ? t.save : t.create,
-			cls: "mod-cta",
-		});
-		submitBtn.addEventListener("click", () => this.onSubmit());
+		this.errorEl = container.createDiv({ cls: "custom-syntax-error" });
 	}
 
 	private clearError(): void {
@@ -510,7 +559,11 @@ class RuleModal extends Modal {
 		this.errorEl.addClass("is-visible");
 	}
 
-	private onSubmit(): void {
+	/**
+	 * Validates the current input. On success returns the resolved values; on
+	 * failure shows the error in-place and returns `{ ok: false }`.
+	 */
+	validate(): { ok: true; value: RuleFormValue } | { ok: false } {
 		const t = stringsFor(this.plugin.settings.language);
 		const lang = resolveLanguage(this.plugin.settings.language);
 		const name = this.nameInput.value.trim();
@@ -520,7 +573,7 @@ class RuleModal extends Modal {
 
 		if (!delimiter) {
 			this.showError(t.delimiterRequired);
-			return;
+			return { ok: false };
 		}
 
 		const builtin = findBuiltinConflict(delimiter);
@@ -528,7 +581,7 @@ class RuleModal extends Modal {
 			const nm = lang === "zh" ? builtin.zh : builtin.en;
 			this.showError(t.conflictBuiltin.replace("{name}", nm));
 			this.pendingCustomConflict = null;
-			return;
+			return { ok: false };
 		}
 
 		const custom = findCustomConflict(
@@ -542,65 +595,42 @@ class RuleModal extends Modal {
 				this.pendingCustomConflict &&
 				this.pendingCustomConflict.id === custom.id
 			) {
-				this.finish(name, delimiter, css, className, false);
-				return;
+				// Second confirmation: create/save but force-disabled.
+				return {
+					ok: true,
+					value: {
+						name: name || t.untitled,
+						delimiter,
+						css,
+						className,
+						enabled: false,
+					},
+				};
 			}
 			this.pendingCustomConflict = custom;
 			const msg = this.rule ? t.conflictCustomSave : t.conflictCustomCreate;
 			this.showError(msg.replace("{name}", nm));
-			return;
+			return { ok: false };
 		}
 
-		this.finish(
-			name,
-			delimiter,
-			css,
-			className,
-			this.rule ? this.rule.enabled : true
-		);
-	}
-
-	private finish(
-		name: string,
-		delimiter: string,
-		css: string,
-		className: string,
-		enabled: boolean
-	): void {
-		const t = stringsFor(this.plugin.settings.language);
-		const finalName = name || t.untitled;
-
-		if (this.rule) {
-			this.rule.name = finalName;
-			this.rule.delimiter = delimiter;
-			this.rule.css = css;
-			this.rule.className = className;
-			this.rule.enabled = enabled;
-			this.rule.conflictWithId = null;
-		} else {
-			this.plugin.settings.rules.push({
-				id: newRuleId(),
-				name: finalName,
+		return {
+			ok: true,
+			value: {
+				name: name || t.untitled,
 				delimiter,
 				css,
 				className,
-				enabled,
-				conflictWithId: null,
-			});
-		}
-
-		void this.plugin.saveSettings();
-		this.close();
-		this.onDone();
+				enabled: this.rule ? this.rule.enabled : true,
+			},
+		};
 	}
 
-	onClose(): void {
+	destroy(): void {
 		this.cssEditor?.destroy();
-		this.contentEl.empty();
 	}
 }
 
-class ExportModal extends Modal {
+export class ExportModal extends Modal {
 	private content: string;
 	private emptyMessage: string;
 	private copyLabel: string;
@@ -657,6 +687,138 @@ class ExportModal extends Modal {
 	}
 }
 
+/**
+ * Enable or disable a rule and resolve any delimiter conflicts by disabling
+ * the rules it would clash with.
+ */
+export async function toggleRuleEnabled(
+	plugin: CustomSyntaxPlugin,
+	rule: SyntaxRule,
+	enabled: boolean
+): Promise<void> {
+	rule.enabled = enabled;
+	rule.conflictWithId = null;
+
+	if (enabled) {
+		for (const other of plugin.settings.rules) {
+			if (
+				other !== rule &&
+				other.enabled &&
+				delimitersConflict(rule.delimiter, other.delimiter)
+			) {
+				other.enabled = false;
+				other.conflictWithId = rule.id;
+			}
+		}
+	}
+
+	await plugin.saveSettings();
+}
+
+/** Remove a rule and clear any dangling conflict pointers that referenced it. */
+export async function deleteRule(
+	plugin: CustomSyntaxPlugin,
+	rule: SyntaxRule
+): Promise<void> {
+	plugin.settings.rules = plugin.settings.rules.filter((r) => r !== rule);
+	for (const r of plugin.settings.rules) {
+		if (r.conflictWithId === rule.id) {
+			r.conflictWithId = null;
+		}
+	}
+	await plugin.saveSettings();
+}
+
+/**
+ * One rule card. `onChanged` re-renders the host after a toggle/delete;
+ * `onEdit` opens the rule in the panel's editor view.
+ */
+export function renderRuleCard(
+	containerEl: HTMLElement,
+	plugin: CustomSyntaxPlugin,
+	rule: SyntaxRule,
+	onChanged: () => void,
+	onEdit: (rule: SyntaxRule) => void
+): void {
+	const t = stringsFor(plugin.settings.language);
+	const card = containerEl.createDiv({ cls: "custom-syntax-rule-card" });
+
+	const row = card.createDiv({ cls: "custom-syntax-rule-row" });
+
+	const nameEl = row.createDiv({
+		cls: "custom-syntax-rule-name",
+		text: rule.name || t.untitled,
+	});
+	nameEl.title = rule.delimiter;
+
+	const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
+
+	const editBtn = controls.createEl("button", { cls: "clickable-icon" });
+	editBtn.setAttribute("aria-label", t.edit);
+	setIcon(editBtn, "pencil");
+	editBtn.addEventListener("click", () => onEdit(rule));
+
+	const delBtn = controls.createEl("button", { cls: "clickable-icon" });
+	delBtn.setAttribute("aria-label", t.delete);
+	setIcon(delBtn, "trash");
+	delBtn.addEventListener("click", () => {
+		const name = rule.name || t.untitled;
+		new ConfirmModal(
+			plugin.app,
+			t.deleteConfirm.replace("{name}", name),
+			t.delete,
+			t.cancel,
+			() => {
+				void deleteRule(plugin, rule).then(onChanged);
+			}
+		).open();
+	});
+
+	// Native Obsidian toggle: the is-enabled class drives the look.
+	const toggle = controls.createDiv({
+		cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container",
+	});
+	toggle.setAttribute("role", "switch");
+	toggle.setAttribute("aria-checked", String(rule.enabled));
+	toggle.setAttribute("aria-label", t.toggle);
+	toggle.setAttribute("tabindex", "0");
+	toggle.addEventListener("click", () => {
+		const newVal = !rule.enabled;
+		toggle.toggleClass("is-enabled", newVal);
+		toggle.setAttribute("aria-checked", String(newVal));
+		void toggleRuleEnabled(plugin, rule, newVal).then(onChanged);
+	});
+	toggle.addEventListener("keydown", (ev: KeyboardEvent) => {
+		if (ev.key === " " || ev.key === "Enter") {
+			ev.preventDefault();
+			toggle.click();
+		}
+	});
+
+	const extraClass = sanitizeClassName(rule.className);
+	if (extraClass) {
+		card.createDiv({
+			cls: "custom-syntax-rule-class",
+			text: `.${extraClass.split(" ").join(" .")}`,
+		});
+	}
+
+	if (rule.conflictWithId) {
+		const other = plugin.settings.rules.find(
+			(r) => r.id === rule.conflictWithId
+		);
+		if (other) {
+			card.createDiv({
+				cls: "custom-syntax-rule-conflict",
+				text: t.conflictAnnotation.replace(
+					"{name}",
+					other.name || t.untitled
+				),
+			});
+		}
+	}
+}
+
 export class CustomSyntaxSettingTab extends PluginSettingTab {
 	plugin: CustomSyntaxPlugin;
 
@@ -678,41 +840,54 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 			text: `v${this.plugin.manifest.version}`,
 		});
 
-		const actions = nav.createDiv({ cls: "custom-syntax-nav-actions" });
-
-		const langSelect = actions.createEl("select");
-		langSelect.addClass("dropdown");
-		const options: Array<[Language, string]> = [
-			["system", t.followSystem],
-			["zh", "中文"],
-			["en", "English"],
-		];
-		for (const [value, label] of options) {
-			const opt = langSelect.createEl("option");
-			opt.value = value;
-			opt.textContent = label;
-		}
-		langSelect.value = this.plugin.settings.language;
-		langSelect.addEventListener("change", () => {
-			this.plugin.settings.language = langSelect.value as Language;
-			void this.plugin.saveSettings();
-			this.display();
+		// Group: Other — each group is a card that nests its setting rows.
+		const groupOther = containerEl.createDiv({
+			cls: "custom-syntax-settings-group",
 		});
+		new Setting(groupOther).setName(t.other).setHeading();
 
-		const addBtn = actions.createEl("button", {
-			text: t.addRule,
-			cls: "mod-cta",
-		});
-		addBtn.addEventListener("click", () => {
-			new RuleModal(this.app, this.plugin, null, () => this.display()).open();
-		});
+		new Setting(groupOther)
+			.setName(t.language)
+			.addDropdown((dd) => {
+				dd.addOption("system", t.followSystem);
+				dd.addOption("zh", "简体中文");
+				dd.addOption("en", "English");
+				dd.setValue(this.plugin.settings.language);
+				dd.onChange(async (value) => {
+					this.plugin.settings.language = value as Language;
+					await this.plugin.saveSettings();
+					this.display();
+				});
+			});
 
-		const list = containerEl.createDiv({ cls: "custom-syntax-rules" });
-		this.plugin.settings.rules.forEach((rule) => {
-			this.renderRuleCard(list, rule);
-		});
+		new Setting(groupOther)
+			.setName(t.toolbarIcon)
+			.setDesc(t.toolbarIconDesc)
+			.addToggle((tg) => {
+				tg.setValue(this.plugin.settings.showRibbon);
+				tg.onChange(async (value) => {
+					this.plugin.settings.showRibbon = value;
+					await this.plugin.saveSettings();
+				});
+			});
 
-		new Setting(containerEl)
+		new Setting(groupOther)
+			.setName(t.invokePanel)
+			.setDesc(t.invokePanelDesc)
+			.addButton((btn) =>
+				btn
+					.setButtonText(t.openPanel)
+					.setCta()
+					.onClick(() => this.plugin.activateRulePanel())
+			);
+
+		// Group: Export
+		const groupExport = containerEl.createDiv({
+			cls: "custom-syntax-settings-group",
+		});
+		new Setting(groupExport).setName(t.exportGroup).setHeading();
+
+		new Setting(groupExport)
 			.setName(t.exportName)
 			.setDesc(t.exportDesc)
 			.addButton((btn) =>
@@ -727,121 +902,203 @@ export class CustomSyntaxSettingTab extends PluginSettingTab {
 					).open();
 				})
 			);
+
+		new Setting(groupExport)
+			.setName(t.docs)
+			.addButton((btn) =>
+				btn.setButtonText(t.docsOpen).onClick(() => {
+					new DocumentationModal(this.app, this.plugin).open();
+				})
+			);
+	}
+}
+
+/** Where the project's README lives — opened from the documentation modal. */
+export const REPO_URL = "https://github.com/BAIYUMIAN/obsidian-custom-syntax";
+
+interface DocSection {
+	h: string;
+	p: string[];
+	code?: string;
+}
+
+/**
+ * Built-in usage guide. Launched from the "Documentation" entry in settings.
+ * The navbar centers the title with an external-link icon (opens the project
+ * README in the browser); a close icon sits on the right.
+ */
+export class DocumentationModal extends Modal {
+	private plugin: CustomSyntaxPlugin;
+
+	constructor(app: App, plugin: CustomSyntaxPlugin) {
+		super(app);
+		this.plugin = plugin;
 	}
 
-	private renderRuleCard(containerEl: HTMLElement, rule: SyntaxRule): void {
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass("custom-syntax-doc");
 		const t = stringsFor(this.plugin.settings.language);
-		const card = containerEl.createDiv({ cls: "custom-syntax-rule-card" });
+		const lang = resolveLanguage(this.plugin.settings.language);
 
-		const row = card.createDiv({ cls: "custom-syntax-rule-row" });
-
-		const nameEl = row.createDiv({
-			cls: "custom-syntax-rule-name",
-			text: rule.name || t.untitled,
+		const nav = contentEl.createDiv({ cls: "custom-syntax-doc-nav" });
+		const center = nav.createDiv({ cls: "custom-syntax-doc-nav-center" });
+		center.createDiv({
+			cls: "custom-syntax-doc-nav-title",
+			text: t.docsTitle,
 		});
-		nameEl.title = rule.delimiter;
-
-		const controls = row.createDiv({ cls: "custom-syntax-rule-controls" });
-
-		const editBtn = controls.createEl("button", { cls: "clickable-icon" });
-		editBtn.setAttribute("aria-label", t.edit);
-		setIcon(editBtn, "pencil");
-		editBtn.addEventListener("click", () => {
-			new RuleModal(this.app, this.plugin, rule, () => this.display()).open();
+		const repoBtn = center.createEl("button", {
+			cls: "clickable-icon",
+			attr: { "aria-label": t.docsRepo },
 		});
+		setIcon(repoBtn, "external-link");
+		repoBtn.addEventListener("click", () => {
+			window.open(REPO_URL, "_blank");
+		});
+		const closeBtn = nav.createEl("button", {
+			cls: "clickable-icon",
+			attr: { "aria-label": t.close },
+		});
+		setIcon(closeBtn, "x");
+		closeBtn.addEventListener("click", () => this.close());
 
-		const delBtn = controls.createEl("button", { cls: "clickable-icon" });
-		delBtn.setAttribute("aria-label", t.delete);
-		setIcon(delBtn, "trash");
-		delBtn.addEventListener("click", () => {
-			const name = rule.name || t.untitled;
-			new ConfirmModal(
-				this.app,
-				t.deleteConfirm.replace("{name}", name),
-				t.delete,
-				t.cancel,
-			() => {
-				void this.deleteRule(rule);
+		const body = contentEl.createDiv({ cls: "custom-syntax-doc-body" });
+
+		const sections: DocSection[] =
+			lang === "zh"
+				? [
+						{
+							h: "添加规则",
+							p: [
+								"点击右侧边栏规则管理器里的「添加规则」，或直接点设置中的「打开面板」。",
+								"填写规则名与分隔符（例如 ++），然后在「样式声明」里只写 CSS 花括号里的部分：",
+							],
+							code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;",
+						},
+						{
+							h: "立即生效",
+							p: ["在笔记里输入 ++文字++ 即可看到效果。"],
+						},
+						{
+							h: "类样式（可选）",
+							p: [
+								"在「类名」里填一个或多个 CSS 类名（空格分隔）。当「样式声明」留空时，样式完全由你自己的 CSS 片段中为这个类名写的规则决定，从而能被主题复用与覆盖。",
+							],
+						},
+						{
+							h: "导出 CSS 片段",
+							p: [
+								"在设置「导出」组中点击「导出 CSS 片段」，把现有规则的样式导出为 .css 文件，放入你的片段文件夹即可长期复用。",
+							],
+						},
+						{
+							h: "阅读模式",
+							p: [
+								"分隔符内为空（例如 ++++）时，会当作普通文本，不做任何渲染——这和原生 == 处理 ==== 的方式一致。",
+							],
+						},
+				  ]
+				: [
+						{
+							h: "Add a rule",
+							p: [
+								'Click "Add rule" in the right-sidebar rule manager, or click "Open panel" in the settings.',
+								"Give the rule a name and a delimiter (e.g. ++), then write only what goes inside the CSS curly braces:",
+							],
+							code: "border: 1px solid var(--interactive-accent);\nborder-radius: 6px;\npadding: 1px 5px;",
+						},
+						{
+							h: "Takes effect immediately",
+							p: ["Type ++text++ in a note to see it styled."],
+						},
+						{
+							h: "Class-based styling (optional)",
+							p: [
+								'Fill in one or more CSS class names (space-separated) under "Class name". When the declarations are left empty, styling comes entirely from the rule you write for that class in your own CSS snippet, so it can be reused and overridden by themes.',
+							],
+						},
+						{
+							h: "Export as CSS snippet",
+							p: [
+								'Under the settings "Export" group, click "Export CSS snippet" to export your rules\' styles as a .css file you can drop into your snippets folder for reuse.',
+							],
+						},
+						{
+							h: "Reading view",
+							p: [
+								"A delimiter with nothing inside (e.g. ++++) is left as plain text and not rendered — just like how native == leaves ==== alone.",
+							],
+						},
+				  ];
+
+		for (const s of sections) {
+			body.createEl("h3", { cls: "custom-syntax-doc-h", text: s.h });
+			for (const para of s.p) {
+				body.createEl("p", { cls: "custom-syntax-doc-p", text: para });
 			}
-		).open();
-		});
-
-		// Native Obsidian toggle: the is-enabled class drives the look.
-		const toggle = controls.createDiv({
-			cls: rule.enabled ? "checkbox-container is-enabled" : "checkbox-container",
-		});
-		toggle.setAttribute("role", "switch");
-		toggle.setAttribute("aria-checked", String(rule.enabled));
-		toggle.setAttribute("aria-label", t.toggle);
-		toggle.setAttribute("tabindex", "0");
-		toggle.addEventListener("click", () => {
-			const newVal = !rule.enabled;
-			toggle.toggleClass("is-enabled", newVal);
-			toggle.setAttribute("aria-checked", String(newVal));
-			void this.toggleRule(rule, newVal);
-			window.setTimeout(() => this.display(), 180);
-		});
-		toggle.addEventListener("keydown", (ev: KeyboardEvent) => {
-			if (ev.key === " " || ev.key === "Enter") {
-				ev.preventDefault();
-				toggle.click();
-			}
-		});
-
-		const extraClass = sanitizeClassName(rule.className);
-		if (extraClass) {
-			card.createDiv({
-				cls: "custom-syntax-rule-class",
-				text: `.${extraClass.split(" ").join(" .")}`,
-			});
-		}
-
-		if (rule.conflictWithId) {
-			const other = this.plugin.settings.rules.find(
-				(r) => r.id === rule.conflictWithId
-			);
-			if (other) {
-				card.createDiv({
-					cls: "custom-syntax-rule-conflict",
-					text: t.conflictAnnotation.replace(
-						"{name}",
-						other.name || t.untitled
-					),
+			if (s.code !== undefined) {
+				body.createEl("pre", {
+					cls: "custom-syntax-doc-code",
+					text: s.code,
 				});
 			}
 		}
 	}
 
-	private async toggleRule(rule: SyntaxRule, enabled: boolean): Promise<void> {
-		rule.enabled = enabled;
-		rule.conflictWithId = null;
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}
 
-		if (enabled) {
-			for (const other of this.plugin.settings.rules) {
-				if (
-					other !== rule &&
-					other.enabled &&
-					delimitersConflict(rule.delimiter, other.delimiter)
-				) {
-					other.enabled = false;
-					other.conflictWithId = rule.id;
-				}
-			}
-		}
+/**
+ * Language switcher launched from the panel's bottom bar. Three rounded
+ * options; tapping a row selects and applies it immediately, syncing back to
+ * the global setting so every surface updates.
+ */
+export class LanguageModal extends Modal {
+	private plugin: CustomSyntaxPlugin;
 
-		await this.plugin.saveSettings();
+	constructor(app: App, plugin: CustomSyntaxPlugin) {
+		super(app);
+		this.plugin = plugin;
 	}
 
-	private async deleteRule(rule: SyntaxRule): Promise<void> {
-		this.plugin.settings.rules = this.plugin.settings.rules.filter(
-			(r) => r !== rule
-		);
-		for (const r of this.plugin.settings.rules) {
-			if (r.conflictWithId === rule.id) {
-				r.conflictWithId = null;
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass("custom-syntax-lang");
+		const t = stringsFor(this.plugin.settings.language);
+
+		const nav = contentEl.createDiv({ cls: "custom-syntax-lang-nav" });
+		nav.createDiv({
+			cls: "custom-syntax-lang-nav-title",
+			text: t.languageSwitch,
+		});
+
+		const body = contentEl.createDiv({ cls: "custom-syntax-lang-body" });
+		const options: { value: Language; label: string }[] = [
+			{ value: "system", label: t.followSystem },
+			{ value: "zh", label: "简体中文" },
+			{ value: "en", label: "English" },
+		];
+		for (const opt of options) {
+			const row = body.createDiv({ cls: "custom-syntax-lang-row" });
+			row.createSpan({ text: opt.label });
+			const radio = row.createSpan({ cls: "custom-syntax-lang-radio" });
+			if (this.plugin.settings.language === opt.value) {
+				radio.addClass("is-selected");
 			}
+			row.addEventListener("click", () => this.select(opt.value));
 		}
-		await this.plugin.saveSettings();
-		this.display();
+	}
+
+	private select(value: Language): void {
+		this.plugin.settings.language = value;
+		void this.plugin.saveSettings().then(() => this.close());
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
 	}
 }

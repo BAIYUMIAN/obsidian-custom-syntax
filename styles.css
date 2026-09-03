@@ -196,7 +196,9 @@
 }
 
 .custom-syntax-css-editor .cm-scroller {
-	max-height: 240px;
+	/* Cap the editor so it adapts to the available page height instead of
+	   growing unbounded — the navbar/footer stay pinned around it. */
+	max-height: clamp(160px, 40vh, 320px);
 	font-family: var(--font-monospace);
 	line-height: 1.6;
 	overflow: auto;
@@ -287,4 +289,232 @@
 	border-radius: var(--radius-s);
 	padding: 8px 10px;
 	resize: vertical;
+}
+
+/* Right-sidebar rule manager (ItemView). Flex column so the body scrolls
+   and the footer stays pinned to the bottom. */
+.custom-syntax-panel {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.custom-syntax-panel-nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	/* Follow the sidebar's own surface — no distinct highlight colour.
+	   The body scrolls inside its own box, so a transparent bar never
+	   overlaps content. */
+	background-color: transparent;
+}
+
+.custom-syntax-panel-nav-title {
+	font-weight: 600;
+	font-size: var(--font-ui-medium);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Scrollable content area between the navbar and the footer. */
+.custom-syntax-panel-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 12px;
+}
+
+.custom-syntax-empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.6;
+}
+
+/* Fixed bottom bar: disabled "Visual editor" on the left, actions on right.
+   Transparent, like the top navbar — it blends with the sidebar surface. */
+.custom-syntax-panel-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 10px 12px;
+	border-top: 1px solid var(--background-modifier-border);
+	background-color: transparent;
+}
+
+.custom-syntax-panel-footer-right {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* Hide the left-ribbon icon when the user turns it off in settings. */
+.custom-syntax-ribbon-hidden {
+	display: none !important;
+}
+
+/* ── Settings: each group is a card that nests its setting rows ── */
+.custom-syntax-settings-group {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	padding: 2px 16px 16px;
+	margin-bottom: 18px;
+}
+
+.custom-syntax-settings-group > .setting-item-heading {
+	padding: 16px 0 10px;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.custom-syntax-settings-group > .setting-item-heading .setting-item-name {
+	font-size: var(--font-ui-large);
+	font-weight: 700;
+}
+
+.custom-syntax-settings-group .setting-item:not(.setting-item-heading) {
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: 14px 16px;
+	margin-bottom: 10px;
+}
+
+.custom-syntax-settings-group
+	.setting-item:not(.setting-item-heading):last-child {
+	margin-bottom: 0;
+}
+
+/* ── Panel: editor navbar keeps the back button on the left ── */
+.custom-syntax-panel-nav.is-editor {
+	justify-content: flex-start;
+	gap: 8px;
+}
+
+/* Main-page bottom bar pins language + settings icons to the right. */
+.custom-syntax-panel-footer--main {
+	justify-content: flex-end;
+}
+
+/* ── Documentation modal ── */
+.custom-syntax-doc-nav {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding: 10px 12px;
+	background-color: transparent;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Centered cluster: title + external-link icon. The close icon sits on the
+   right edge, matching Obsidian's own modal-title placement. */
+.custom-syntax-doc-nav-center {
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.custom-syntax-doc-nav-title {
+	font-size: var(--font-ui-large);
+	font-weight: 600;
+}
+
+/* The nav carries its own (right-aligned) close icon, so hide Obsidian's
+   native modal close button to avoid duplicating it. */
+.custom-syntax-doc .modal-close-button {
+	display: none;
+}
+
+.custom-syntax-doc-body {
+	padding: 16px 2px;
+}
+
+.custom-syntax-doc-h {
+	margin: 18px 0 6px;
+	font-size: var(--font-ui-medium);
+	font-weight: 600;
+}
+
+.custom-syntax-doc-h:first-child {
+	margin-top: 0;
+}
+
+.custom-syntax-doc-p {
+	margin: 0 0 8px;
+	line-height: 1.7;
+	color: var(--text-normal);
+}
+
+.custom-syntax-doc-code {
+	margin: 0 0 8px;
+	padding: 10px 12px;
+	background-color: var(--background-modifier-code);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	white-space: pre-wrap;
+	color: var(--text-normal);
+}
+
+/* ── Language switcher modal ── */
+.custom-syntax-lang-nav {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.custom-syntax-lang-nav-title {
+	font-size: var(--font-ui-large);
+	font-weight: 600;
+}
+
+.custom-syntax-lang-body {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px;
+}
+
+.custom-syntax-lang-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 14px 16px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	cursor: pointer;
+}
+
+.custom-syntax-lang-row:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.custom-syntax-lang-radio {
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	border: 2px solid var(--background-modifier-border);
+	flex-shrink: 0;
+}
+
+.custom-syntax-lang-radio.is-selected {
+	border-color: var(--interactive-accent);
+	background-color: var(--interactive-accent);
+	box-shadow: inset 0 0 0 3px var(--background-primary);
 }
