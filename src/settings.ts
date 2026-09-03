@@ -113,13 +113,15 @@ export function normalizeRule(r: Partial<SyntaxRule>): SyntaxRule {
 	const open = r.open ?? legacy.delimiter ?? "";
 	const close =
 		r.close ?? (kind === "inline" ? open : kind === "fenced" ? open : "");
+	// Defensive: if close is empty string for fenced/multiline, fall back to open.
+	const safeClose = close || (kind !== "inline" && kind !== "callout" ? open : close);
 	return {
 		id: typeof r.id === "string" && r.id ? r.id : newRuleId(),
 		name: typeof r.name === "string" ? r.name : "",
 		enabled: r.enabled ?? true,
 		kind,
 		open,
-		close,
+		close: safeClose,
 		readType: r.readType ?? (kind === "callout" ? true : kind === "fenced"),
 		captureParams: r.captureParams ?? false,
 		css: r.css ?? "",
@@ -885,7 +887,7 @@ export class RuleForm {
 					? open
 					: this.kind === "multiline"
 						? close
-						: "",
+						: open,
 				this.kind === "callout"
 					? true
 					: this.kind === "fenced"

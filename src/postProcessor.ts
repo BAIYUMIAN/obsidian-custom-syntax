@@ -311,9 +311,15 @@ function firstLineText(el: HTMLElement): string | null {
 	return buf === "" && el.childNodes.length === 0 ? null : buf;
 }
 
-/** The trimmed text of a single-line block element. */
+/** The trimmed text of a single-line block element, collapsed to single line. */
 function lineText(el: HTMLElement): string {
 	return (el.textContent ?? "").replace(/\n/g, " ").trim();
+}
+
+/** Normalised closer match: exact after trimming whitespace and collapsing newlines. */
+function matchesCloser(el: HTMLElement, close: string): boolean {
+	if (!close) return false;
+	return lineText(el) === close.trim();
 }
 
 /**
@@ -390,7 +396,7 @@ function applyBlock(root: HTMLElement, rule: SyntaxRule): void {
 	let closerIdx = -1;
 	for (let i = 0; i < restEls.length; i++) {
 		if (restEls[i].dataset.csBlock) break;
-		if (lineText(restEls[i]) === close) {
+		if (matchesCloser(restEls[i], close)) {
 			closerIdx = i;
 			break;
 		}

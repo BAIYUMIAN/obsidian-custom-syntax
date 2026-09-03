@@ -799,13 +799,14 @@ function normalizeRule(r) {
   const legacy = r;
   const open = (_b = (_a = r.open) != null ? _a : legacy.delimiter) != null ? _b : "";
   const close = (_c = r.close) != null ? _c : kind === "inline" ? open : kind === "fenced" ? open : "";
+  const safeClose = close || (kind !== "inline" && kind !== "callout" ? open : close);
   return {
     id: typeof r.id === "string" && r.id ? r.id : newRuleId(),
     name: typeof r.name === "string" ? r.name : "",
     enabled: (_d = r.enabled) != null ? _d : true,
     kind,
     open,
-    close,
+    close: safeClose,
     readType: (_e = r.readType) != null ? _e : kind === "callout" ? true : kind === "fenced",
     captureParams: (_f = r.captureParams) != null ? _f : false,
     css: (_g = r.css) != null ? _g : "",
@@ -1327,7 +1328,7 @@ var RuleForm = class {
         name,
         this.kind,
         open,
-        this.kind === "inline" ? open : this.kind === "multiline" ? close : "",
+        this.kind === "inline" ? open : this.kind === "multiline" ? close : open,
         this.kind === "callout" ? true : this.kind === "fenced" ? this.readType : false,
         isBlock ? this.captureParams : false,
         css,
@@ -2191,6 +2192,10 @@ function lineText(el) {
   var _a;
   return ((_a = el.textContent) != null ? _a : "").replace(/\n/g, " ").trim();
 }
+function matchesCloser(el, close) {
+  if (!close) return false;
+  return lineText(el) === close.trim();
+}
 function splitElementByBr(el) {
   var _a;
   const doc = el.ownerDocument;
@@ -2247,7 +2252,7 @@ function applyBlock(root, rule) {
   let closerIdx = -1;
   for (let i = 0; i < restEls.length; i++) {
     if (restEls[i].dataset.csBlock) break;
-    if (lineText(restEls[i]) === close) {
+    if (matchesCloser(restEls[i], close)) {
       closerIdx = i;
       break;
     }

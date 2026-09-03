@@ -20,6 +20,7 @@
 		"@lezer/highlight": "1.2.3",
 		"@types/node": "20.19.43",
 		"esbuild": "0.21.5",
+		"jsdom": "^30.0.1",
 		"obsidian": "1.13.1",
 		"tslib": "2.8.1",
 		"typescript": "5.9.3"
