@@ -1,0 +1,67 @@
+/* =============================================================
+ * Custom Syntax — 块级语法样式增强片段（示例）
+ * -------------------------------------------------------------
+ * 用法：把本文件复制到你的库「.obsidian/snippets/」目录，
+ *      在 Obsidian 设置 → 外观 → CSS 片段 中启用。
+ *
+ * 类模型（阅读视图每个块都带上）：
+ *   .cs-block            所有块级语法的公共容器
+ *   .cs-block-<规则id>   精确命中某一条规则（设置卡片上可见）
+ *   .cs-fence-<类型>     开启「读取类型」后 ::: 后的类型名，如
+ *                       :::note → .cs-fence-note
+ *                       :::warning → .cs-fence-warning
+ *
+ * 重要：规则「样式声明」是行内样式，优先于本片段。
+ *       想让类型色生效，要么把规则声明里的 border-left 删掉，
+ *       要么像这里用 !important 强制覆盖。
+ * ============================================================= */
+
+/* 基础盒（插件已内置默认，这里给一个更醒目的版本，可整段删掉用默认） */
+.cs-block {
+	margin: 1em 0;
+	padding: 0.9em 1em 0.9em 1.2em;
+	border: 1px solid var(--background-modifier-border);
+	border-left-width: 4px;
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-secondary);
+}
+
+.cs-block:first-child { margin-top: 0; }
+.cs-block:last-child { margin-bottom: 0; }
+.cs-block > :first-child { margin-top: 0; }
+.cs-block > :last-child { margin-bottom: 0; }
+
+/* 各类型强调色（!important 盖过规则行内声明） */
+.cs-fence-note    { border-left: 4px solid var(--interactive-accent) !important; }
+.cs-fence-info    { border-left: 4px solid var(--text-link) !important; }
+.cs-fence-tip     { border-left: 4px solid var(--color-green) !important; }
+.cs-fence-success { border-left: 4px solid var(--color-green) !important; }
+.cs-fence-warning { border-left: 4px solid var(--color-orange) !important; }
+.cs-fence-danger  { border-left: 4px solid var(--color-red) !important; }
+.cs-fence-example { border-left: 4px solid var(--color-purple) !important; }
+.cs-fence-quote   { border-left: 4px solid var(--text-muted) !important; }
+
+/* 类型标题（用 ::before 显示类型名） */
+.cs-block[class*="cs-fence-"]::before {
+	display: block;
+	margin: -0.1em 0 0.55em;
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.cs-fence-note::before    { content: "Note"; }
+.cs-fence-info::before    { content: "Info"; }
+.cs-fence-tip::before     { content: "Tip"; }
+.cs-fence-success::before { content: "Success"; }
+.cs-fence-warning::before { content: "Warning"; }
+.cs-fence-danger::before  { content: "Danger"; }
+.cs-fence-example::before { content: "Example"; }
+.cs-fence-quote::before   { content: "Quote"; }
+
+/* 危险块给一点淡红底，便于一眼识别 */
+.cs-fence-danger {
+	background-color: rgba(230, 30, 30, 0.06);
+}

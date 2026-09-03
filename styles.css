@@ -528,10 +528,10 @@
 
 /* ── Block-level custom syntax (reading view) ── */
 .cs-block {
-	margin: 0.5em 0;
-	padding: 0.6em 0.9em;
+	margin: 1em 0;
+	padding: 0.8em 1em;
 	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m, 6px);
+	border-radius: var(--radius-m, 8px);
 	background-color: var(--background-secondary);
 }
 
@@ -543,10 +543,52 @@
 	margin-bottom: 0;
 }
 
-/* Fenced block type class — e.g. :::note becomes .cs-fence-note.
-   Users can target these (or the rule's own .cs-block-<id>) from a CSS snippet. */
+/* Don't let the first/last child inside a block add doubled outer spacing. */
+.cs-block > :first-child {
+	margin-top: 0;
+}
+
+.cs-block > :last-child {
+	margin-bottom: 0;
+}
+
+/* Fenced type variants — `:::note` becomes `.cs-fence-note`, `:::info`
+   becomes `.cs-fence-info`, and so on. These are sensible built-in defaults
+   (a semantic-coloured left accent bar). Override them from a CSS snippet to
+   taste; they only touch this plugin's blocks and never leak globally.
+   NOTE: a rule's own 样式声明 (inline style) takes priority, so to let these
+   type colours show, leave `border-left` out of the rule's declaration (or
+   use `!important` in your snippet). */
 .cs-fence-note {
-	border-left: 3px solid var(--interactive-accent);
+	border-left: 4px solid var(--interactive-accent);
+}
+
+.cs-fence-info {
+	border-left: 4px solid var(--text-link);
+}
+
+.cs-fence-tip {
+	border-left: 4px solid var(--color-green);
+}
+
+.cs-fence-success {
+	border-left: 4px solid var(--color-green);
+}
+
+.cs-fence-warning {
+	border-left: 4px solid var(--color-orange);
+}
+
+.cs-fence-danger {
+	border-left: 4px solid var(--color-red);
+}
+
+.cs-fence-example {
+	border-left: 4px solid var(--color-purple);
+}
+
+.cs-fence-quote {
+	border-left: 4px solid var(--text-muted);
 }
 
 /* Hook for custom-callout rules: applied to the native Obsidian callout box. */

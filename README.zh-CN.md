@@ -71,6 +71,58 @@
 - **自定义 Callout**——`> [!类型]` 触发 Obsidian 原生 callout 盒子，插件仅加你的类名/样式。
 - **捕获参数**——开启开关后，在标记后写 `{ .类名 #id 键=值 }`：`:::note { .box #main color=red } … :::` 会加上类 `box`、id `main` 与 `color: red`。
 
+## 块级样式的类模型
+
+阅读视图里，每个块级匹配会被包进一个容器 `<div>`，并带上固定的一组类，方便你用 CSS 片段精确定制：
+
+| 类 | 何时出现 | 用途 |
+| --- | --- | --- |
+| `.cs-block` | 永远 | 所有块级语法的公共容器（基础盒由插件内置默认提供） |
+| `.cs-block-<规则id>` | 永远 | 精确命中某一条规则（规则 id 在设置卡片上可见） |
+| `.cs-fence-<类型>` | 开启「读取类型」的围栏块 | `:::note → .cs-fence-note`、`:::warning → .cs-fence-warning` … |
+
+插件已为最常见的类型内置默认强调色（左侧色条）：`note`(强调色)、`info`(蓝)、`tip`/`success`(绿)、`warning`(橙)、`danger`(红)、`example`(紫)、`quote`(灰)。其它类型名只要按 `.cs-fence-<你的类型>` 写即可。
+
+> **坑：规则「样式声明」是行内样式，会盖过上面的类型色。** 若你在规则声明里写了 `border-left`，那么 `:::note` 和 `:::warning` 会显示同一种颜色。想让类型色生效，二选一：
+> 1. 把规则声明里的 `border-left` 删掉（保留 `padding` / `border-radius` 等），交给 `.cs-fence-*` 控制颜色；
+> 2. 在你的 CSS 片段里用 `!important` 强制覆盖（见下方「片段示例」）。
+
+### 片段示例
+
+把下面内容存成 **设置 → 外观 → CSS 片段** 里的一个 `.css` 文件并启用（本仓库示例：`custom-syntax-blocks.css`，含类型标题）：
+
+```css
+/* 基础盒 */
+.cs-block {
+	margin: 1em 0;
+	padding: 0.9em 1em 0.9em 1.2em;
+	border: 1px solid var(--background-modifier-border);
+	border-left-width: 4px;
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-secondary);
+}
+
+/* 按类型分色（!important 盖过规则行内声明） */
+.cs-fence-note    { border-left: 4px solid var(--interactive-accent) !important; }
+.cs-fence-info    { border-left: 4px solid var(--text-link) !important; }
+.cs-fence-tip     { border-left: 4px solid var(--color-green) !important; }
+.cs-fence-warning { border-left: 4px solid var(--color-orange) !important; }
+.cs-fence-danger  { border-left: 4px solid var(--color-red) !important; }
+
+/* 类型标题 */
+.cs-block[class*="cs-fence-"]::before {
+	display: block;
+	margin: -0.1em 0 0.55em;
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+.cs-fence-note::before    { content: "Note"; }
+.cs-fence-warning::before { content: "Warning"; }
+.cs-fence-danger::before  { content: "Danger"; }
+```
+
 ## 两种方式给规则加样式
 
 ### 一、样式声明（快捷）

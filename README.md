@@ -72,6 +72,62 @@ This is a custom callout (styled by the plugin)
 - **Capture parameters** — with the toggle on, write `{ .class #id key=value }` after the marker:
   `:::note { .box #main color=red } … :::` adds the class `box`, the id `main`, and `color: red`.
 
+## Block styling class model
+
+In reading view, every block-level match is wrapped in a container `<div>` carrying a fixed set of classes, so you can target it precisely from a CSS snippet:
+
+| Class | When | Purpose |
+| --- | --- | --- |
+| `.cs-block` | always | common container for all block syntax (a base box ships as a built-in default) |
+| `.cs-block-<ruleId>` | always | pin a single rule (rule id is shown on its settings card) |
+| `.cs-fence-<type>` | fenced blocks with *Read type* on | `:::note → .cs-fence-note`, `:::warning → .cs-fence-warning` … |
+
+The plugin ships sensible default accent colours for the common types (left colour bar):
+`note` (accent), `info` (blue), `tip`/`success` (green), `warning` (orange), `danger` (red),
+`example` (purple), `quote` (grey). Any other type name works simply by writing `.cs-fence-<yourtype>`.
+
+> **Gotcha: a rule's *declarations* are inline styles and override the type colours above.** If you write
+> `border-left` in a rule's declaration, `:::note` and `:::warning` will show the same colour. To let type
+> colours show, either drop `border-left` from the declaration (keep `padding`/`border-radius`) and let
+> `.cs-fence-*` own the colour, or use `!important` in your snippet (see below).
+
+### Snippet example
+
+Save the following as a `.css` file under **Settings → Appearance → CSS snippets** and enable it
+(this repo ships `custom-syntax-blocks.css`, which also adds type titles):
+
+```css
+/* base box */
+.cs-block {
+	margin: 1em 0;
+	padding: 0.9em 1em 0.9em 1.2em;
+	border: 1px solid var(--background-modifier-border);
+	border-left-width: 4px;
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-secondary);
+}
+
+/* per-type colour (!important beats a rule's inline declaration) */
+.cs-fence-note    { border-left: 4px solid var(--interactive-accent) !important; }
+.cs-fence-info    { border-left: 4px solid var(--text-link) !important; }
+.cs-fence-tip     { border-left: 4px solid var(--color-green) !important; }
+.cs-fence-warning { border-left: 4px solid var(--color-orange) !important; }
+.cs-fence-danger  { border-left: 4px solid var(--color-red) !important; }
+
+/* type title */
+.cs-block[class*="cs-fence-"]::before {
+	display: block;
+	margin: -0.1em 0 0.55em;
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+.cs-fence-note::before    { content: "Note"; }
+.cs-fence-warning::before { content: "Warning"; }
+.cs-fence-danger::before  { content: "Danger"; }
+```
+
 ## Two ways to style a rule
 
 ### Declarations (quick)
